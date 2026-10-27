@@ -1,7 +1,7 @@
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import { ArrowRight, Cake, Heart, LogOut, MapPin, ShoppingBag, Sparkles, Star } from 'lucide-react';
+import { ArrowRight, Cake, Heart, LogOut, MapPin, ShoppingBag, Sparkles, Star, Store } from 'lucide-react';
 
 export default function Dashboard() {
     const {
@@ -13,6 +13,18 @@ export default function Dashboard() {
     } = usePage().props;
     const [showLogoutConfirmation, setShowLogoutConfirmation] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [showSellerForm, setShowSellerForm] = useState(false);
+    const sellerForm = useForm({
+        store_name: '',
+        city: '',
+        phone: auth.user.phone ?? '',
+        description: '',
+    });
+
+    const handleSellerRegistration = (event) => {
+        event.preventDefault();
+        sellerForm.post(route('seller.register'));
+    };
 
     const handleCheckoutFavorite = (product) => {
         router.post(
@@ -109,6 +121,129 @@ export default function Dashboard() {
                             <p className="mt-2 text-xs text-gray-500">Rata-rata rating dari review yang kamu berikan</p>
                         </div>
                     </div>
+
+                    {auth.user.role === 'customer' && (
+                        <section className="overflow-hidden rounded-[28px] border border-[#efd9df] bg-white shadow-[0_10px_30px_rgba(74,7,28,0.04)]">
+                            <div className="flex flex-col gap-5 bg-gradient-to-r from-[#fff4f6] to-[#fffaf7] p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                                <div className="flex items-start gap-4">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f5dfe7] text-[#7d0f2e]">
+                                        <Store className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-extrabold text-gray-900">
+                                            Punya usaha kue? Mulai jualan di LAPAKan
+                                        </h2>
+                                        <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                                            Buat toko gratis dalam beberapa langkah, lalu kelola produk dan pesanan dari dashboard penjual.
+                                        </p>
+                                    </div>
+                                </div>
+                                {!showSellerForm && (
+                                    <button
+                                        type="button"
+                                        aria-expanded={showSellerForm}
+                                        aria-controls="seller-registration-form"
+                                        onClick={() => setShowSellerForm(true)}
+                                        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#7d0f2e] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#620d25]"
+                                    >
+                                        Mulai Jualan
+                                        <ArrowRight className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {showSellerForm && (
+                                <form id="seller-registration-form" onSubmit={handleSellerRegistration} className="grid gap-5 border-t border-[#f0e0d8] p-6 sm:grid-cols-2 sm:p-7">
+                                    <label htmlFor="seller-store-name" className="flex flex-col gap-1.5 text-sm font-semibold text-gray-700">
+                                        Nama toko
+                                        <input
+                                            id="seller-store-name"
+                                            type="text"
+                                            required
+                                            maxLength={255}
+                                            value={sellerForm.data.store_name}
+                                            onChange={(event) => sellerForm.setData('store_name', event.target.value)}
+                                            className="w-full rounded-xl border border-gray-300 px-4 py-3 font-normal text-gray-900 focus:border-[#9f2348] focus:outline-none focus:ring-2 focus:ring-[#9f2348]/15"
+                                            placeholder="Contoh: Dapur Manis"
+                                        />
+                                        {sellerForm.errors.store_name && (
+                                            <span className="block font-normal text-red-600">{sellerForm.errors.store_name}</span>
+                                        )}
+                                    </label>
+
+                                    <label htmlFor="seller-city" className="flex flex-col gap-1.5 text-sm font-semibold text-gray-700">
+                                        Kota
+                                        <input
+                                            id="seller-city"
+                                            type="text"
+                                            required
+                                            maxLength={255}
+                                            value={sellerForm.data.city}
+                                            onChange={(event) => sellerForm.setData('city', event.target.value)}
+                                            className="w-full rounded-xl border border-gray-300 px-4 py-3 font-normal text-gray-900 focus:border-[#9f2348] focus:outline-none focus:ring-2 focus:ring-[#9f2348]/15"
+                                            placeholder="Contoh: Bandung"
+                                        />
+                                        {sellerForm.errors.city && (
+                                            <span className="block font-normal text-red-600">{sellerForm.errors.city}</span>
+                                        )}
+                                    </label>
+
+                                    <label htmlFor="seller-phone" className="flex flex-col gap-1.5 text-sm font-semibold text-gray-700">
+                                        Nomor WhatsApp toko
+                                        <input
+                                            id="seller-phone"
+                                            type="tel"
+                                            required
+                                            maxLength={30}
+                                            value={sellerForm.data.phone}
+                                            onChange={(event) => sellerForm.setData('phone', event.target.value)}
+                                            className="w-full rounded-xl border border-gray-300 px-4 py-3 font-normal text-gray-900 focus:border-[#9f2348] focus:outline-none focus:ring-2 focus:ring-[#9f2348]/15"
+                                            placeholder="08xxxxxxxxxx"
+                                        />
+                                        {sellerForm.errors.phone && (
+                                            <span className="block font-normal text-red-600">{sellerForm.errors.phone}</span>
+                                        )}
+                                    </label>
+
+                                    <label htmlFor="seller-description" className="flex flex-col gap-1.5 text-sm font-semibold text-gray-700 sm:col-span-2">
+                                        Ceritakan singkat tentang tokomu
+                                        <textarea
+                                            id="seller-description"
+                                            rows={3}
+                                            maxLength={2000}
+                                            value={sellerForm.data.description}
+                                            onChange={(event) => sellerForm.setData('description', event.target.value)}
+                                            className="w-full rounded-xl border border-gray-300 px-4 py-3 font-normal text-gray-900 focus:border-[#9f2348] focus:outline-none focus:ring-2 focus:ring-[#9f2348]/15"
+                                            placeholder="Jenis kue atau produk yang kamu jual (opsional)"
+                                        />
+                                        {sellerForm.errors.description && (
+                                            <span className="block font-normal text-red-600">{sellerForm.errors.description}</span>
+                                        )}
+                                    </label>
+
+                                    <div className="flex flex-col-reverse gap-3 sm:col-span-2 sm:flex-row sm:justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                sellerForm.reset();
+                                                setShowSellerForm(false);
+                                            }}
+                                            className="rounded-full border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                                        >
+                                            Nanti saja
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={sellerForm.processing}
+                                            className="rounded-full bg-[#7d0f2e] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#620d25] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {sellerForm.processing ? 'Membuat toko...' : 'Buat toko & lanjutkan'}
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+                        </section>
+                    )}
 
                     <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
                         <div className="rounded-[28px] border border-[#f0e0d8] bg-white p-6 shadow-[0_10px_30px_rgba(74,7,28,0.04)]">

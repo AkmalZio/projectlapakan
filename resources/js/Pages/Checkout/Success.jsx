@@ -45,6 +45,10 @@ export default function Success({ order }) {
                             <span className="font-bold text-gray-900">{order.recipient_name}</span>
                         </div>
                         <div className="flex justify-between pb-2 border-b border-gray-200">
+                            <span className="text-gray-500">Kurir</span>
+                            <span className="font-bold text-gray-900">{order.delivery_courier || 'Belum tercatat'}</span>
+                        </div>
+                        <div className="flex justify-between pb-2 border-b border-gray-200">
                             <span className="text-gray-500">Tanggal Pengiriman</span>
                             <span className="font-bold text-crimson-800">{order.delivery_date} ({order.delivery_time_slot})</span>
                         </div>

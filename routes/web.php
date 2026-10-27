@@ -7,6 +7,8 @@ use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Seller\SellerDashboardController;
+use App\Http\Controllers\Seller\SellerRegistrationController;
 use App\Http\Controllers\SuperAdminController;
 use App\Models\Favorite;
 use App\Models\Review;
@@ -19,6 +21,14 @@ Route::get('/', [MarketplaceController::class, 'index'])->name('home');
 Route::get('/katalog', [MarketplaceController::class, 'catalog'])->name('catalog');
 Route::get('/product/{slug}', [MarketplaceController::class, 'show'])->name('product.show');
 Route::get('/tentang', [MarketplaceController::class, 'about'])->name('about');
+
+Route::middleware(['auth', 'verified', 'role:admin,merchant'])->group(function () {
+    Route::get('/seller/dashboard', [SellerDashboardController::class, 'index'])->name('seller.dashboard');
+});
+
+Route::post('/seller/register', [SellerRegistrationController::class, 'store'])
+    ->middleware(['auth', 'verified', 'role:customer'])
+    ->name('seller.register');
 
 // Shopping Cart Routes
 Route::prefix('cart')->name('cart.')->group(function () {
@@ -52,7 +62,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
 
         if ($user?->isSeller()) {
-            return redirect()->route('admin.dashboard');
+            return redirect()->route('seller.dashboard');
         }
 
         $favoriteProducts = Favorite::with('product')
@@ -86,6 +96,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('role:admin,merchant')->group(function () {
         Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
         Route::post('/admin/products', [AdminDashboardController::class, 'storeProduct'])->name('admin.products.store');
+        Route::patch('/admin/orders/{order}/status', [AdminDashboardController::class, 'updateOrderStatus'])->name('admin.orders.update-status');
     });
 
     Route::middleware('role:super_admin')->group(function () {

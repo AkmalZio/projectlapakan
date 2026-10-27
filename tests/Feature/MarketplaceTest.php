@@ -173,8 +173,110 @@ class MarketplaceTest extends TestCase
             ->where('candlesCount', 3)
             ->where('candleUnitPrice', 3000)
             ->where('candleCost', 9000)
+            ->where('shippingCouriers.jnt_express.name', 'J&T Express')
+            ->where('shippingCouriers.jne_reg.estimate', '2-4 hari')
+            ->where('shippingCouriers.sicepat_reg.cost', 17000)
+            ->where('shippingCouriers.pos_reguler.cost', 15000)
+            ->where('shippingCost', 20000)
             ->where('total', 309000)
         );
+    }
+
+    public function test_shipping_step_saves_courier_and_updated_item_quantities(): void
+    {
+        $cart = [
+            $this->product->id.'_0' => [
+                'id' => $this->product->id.'_0',
+                'product_id' => $this->product->id,
+                'name' => $this->product->name,
+                'price' => 280000,
+                'quantity' => 1,
+            ],
+        ];
+
+        $this->actingAs($this->user)->withSession(['checkout_cart' => $cart]);
+
+        $response = $this->post('/checkout/shipping', [
+            'recipient_name' => 'Budi Santoso',
+            'recipient_phone' => '081234567890',
+            'delivery_address' => 'Jl. Mawar No. 10 Jakarta',
+            'delivery_courier' => 'sicepat_reg',
+            'delivery_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_time_slot' => '10:00 - 14:00',
+            'candles_count' => 1,
+            'quantities' => [$this->product->id.'_0' => 2],
+        ]);
+
+        $response->assertRedirect(route('checkout.payment', absolute: false));
+        $this->assertSame(2, session('checkout_cart')[$this->product->id.'_0']['quantity']);
+        $this->assertSame('sicepat_reg', session('checkout_shipping')['delivery_courier']);
+
+        $this->get('/checkout/payment')->assertInertia(fn ($page) => $page
+            ->where('deliveryCourier', 'SiCepat')
+            ->where('deliveryEstimate', '1-3 hari')
+            ->where('shippingCost', 17000)
+            ->where('subtotal', 560000)
+            ->where('total', 580000)
+        );
+    }
+
+    public function test_shipping_rejects_an_unsupported_courier(): void
+    {
+        $this->actingAs($this->user)->withSession([
+            'checkout_cart' => [
+                $this->product->id.'_0' => [
+                    'id' => $this->product->id.'_0',
+                    'product_id' => $this->product->id,
+                    'name' => $this->product->name,
+                    'price' => 280000,
+                    'quantity' => 1,
+                ],
+            ],
+        ]);
+
+        $response = $this->from('/checkout')->post('/checkout/shipping', [
+            'recipient_name' => 'Budi Santoso',
+            'recipient_phone' => '081234567890',
+            'delivery_address' => 'Jl. Mawar No. 10 Jakarta',
+            'delivery_courier' => 'unknown_courier',
+            'delivery_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_time_slot' => '10:00 - 14:00',
+            'candles_count' => 1,
+            'quantities' => [$this->product->id.'_0' => 1],
+        ]);
+
+        $response->assertRedirect('/checkout');
+        $response->assertSessionHasErrors('delivery_courier');
+    }
+
+    public function test_shipping_rejects_item_quantities_above_the_checkout_limit(): void
+    {
+        $this->actingAs($this->user)->withSession([
+            'checkout_cart' => [
+                $this->product->id.'_0' => [
+                    'id' => $this->product->id.'_0',
+                    'product_id' => $this->product->id,
+                    'name' => $this->product->name,
+                    'price' => 280000,
+                    'quantity' => 1,
+                ],
+            ],
+        ]);
+
+        $response = $this->from('/checkout')->post('/checkout/shipping', [
+            'recipient_name' => 'Budi Santoso',
+            'recipient_phone' => '081234567890',
+            'delivery_address' => 'Jl. Mawar No. 10 Jakarta',
+            'delivery_courier' => 'sicepat_reg',
+            'delivery_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_time_slot' => '10:00 - 14:00',
+            'candles_count' => 1,
+            'quantities' => [$this->product->id.'_0' => 100],
+        ]);
+
+        $response->assertRedirect('/checkout');
+        $response->assertSessionHasErrors('quantities.'.$this->product->id.'_0');
+        $this->assertSame(1, session('checkout_cart')[$this->product->id.'_0']['quantity']);
     }
 
     public function test_shipping_rejects_a_negative_candle_quantity(): void
@@ -224,7 +326,7 @@ class MarketplaceTest extends TestCase
                     'product_id' => $this->product->id,
                     'name' => $this->product->name,
                     'price' => 280000,
-                    'quantity' => 1,
+                    'quantity' => 2,
                     'cake_text' => 'Happy 25th!',
                 ],
             ],
@@ -232,6 +334,7 @@ class MarketplaceTest extends TestCase
                 'recipient_name' => 'Budi Santoso',
                 'recipient_phone' => '081234567890',
                 'delivery_address' => 'Jl. Mawar No. 10 Jakarta',
+                'delivery_courier' => 'sicepat_reg',
                 'delivery_date' => now()->addDays(2)->format('Y-m-d'),
                 'delivery_time_slot' => '10:00 - 14:00',
                 'cake_text' => 'Happy 25th!',
@@ -246,11 +349,14 @@ class MarketplaceTest extends TestCase
         $this->assertDatabaseHas('orders', [
             'recipient_name' => 'Budi Santoso',
             'payment_method' => 'BCA',
-            'total_amount' => 306000,
+            'delivery_courier' => 'SiCepat',
+            'shipping_cost' => 17000,
+            'total_amount' => 583000,
             'candles_count' => 2,
         ]);
 
         $order = Order::first();
+        $this->assertSame(2, $order->items()->first()->quantity);
         $response->assertRedirect(route('orders.success', $order->order_number));
     }
 }

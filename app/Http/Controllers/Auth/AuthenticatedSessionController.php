@@ -49,7 +49,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user->isSeller()) {
-            return route('admin.dashboard', absolute: false);
+            return route('seller.dashboard', absolute: false);
         }
 
         return route('home', absolute: false);

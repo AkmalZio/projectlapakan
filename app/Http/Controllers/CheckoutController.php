@@ -11,12 +11,41 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CheckoutController extends Controller
 {
     private const CANDLE_UNIT_PRICE = 3000;
+
+    private const SHIPPING_COURIERS = [
+        'jnt_express' => [
+            'name' => 'J&T Express',
+            'service' => 'EZ',
+            'cost' => 20000,
+            'estimate' => '2-3 hari',
+        ],
+        'jne_reg' => [
+            'name' => 'JNE',
+            'service' => 'REG',
+            'cost' => 18000,
+            'estimate' => '2-4 hari',
+        ],
+        'sicepat_reg' => [
+            'name' => 'SiCepat',
+            'service' => 'REG',
+            'cost' => 17000,
+            'estimate' => '1-3 hari',
+        ],
+        'pos_reguler' => [
+            'name' => 'Pos Indonesia',
+            'service' => 'Pos Reguler',
+            'cost' => 15000,
+            'estimate' => '3-5 hari',
+        ],
+    ];
 
     /**
      * Display Step 1: Shipping & Delivery Info.
@@ -34,30 +63,34 @@ class CheckoutController extends Controller
             $subtotal += $item['price'] * $item['quantity'];
         }
 
-        $shippingData = $request->session()->get('checkout_shipping', [
+        $shippingData = array_merge([
             'recipient_name' => Auth::user()?->name ?? '',
             'recipient_phone' => Auth::user()?->phone ?? '',
             'delivery_address' => '',
+            'delivery_courier' => 'jnt_express',
             'delivery_date' => now()->addDay()->format('Y-m-d'),
             'delivery_time_slot' => '10:00 - 14:00',
             'greeting_card_message' => '',
             'cake_text' => '',
             'notes' => '',
             'candles_count' => 1,
-        ]);
+        ], $request->session()->get('checkout_shipping', []));
 
         $candlesCount = (int) ($shippingData['candles_count'] ?? 1);
+        $shippingCost = self::SHIPPING_COURIERS[$shippingData['delivery_courier']]['cost']
+            ?? self::SHIPPING_COURIERS['jnt_express']['cost'];
         $candleUnitPrice = self::CANDLE_UNIT_PRICE;
         $candleCost = $candlesCount * $candleUnitPrice;
 
         return Inertia::render('Checkout/Shipping', [
             'cartItems' => array_values($cart),
             'subtotal' => $subtotal,
-            'shippingCost' => 20000,
+            'shippingCost' => $shippingCost,
+            'shippingCouriers' => self::SHIPPING_COURIERS,
             'candlesCount' => $candlesCount,
             'candleUnitPrice' => $candleUnitPrice,
             'candleCost' => $candleCost,
-            'total' => $subtotal + 20000 + $candleCost,
+            'total' => $subtotal + $shippingCost + $candleCost,
             'shippingData' => $shippingData,
         ]);
     }
@@ -94,14 +127,39 @@ class CheckoutController extends Controller
             'recipient_name' => 'required|string|max:100',
             'recipient_phone' => 'required|string|max:20',
             'delivery_address' => 'required|string|max:500',
+            'delivery_courier' => ['required', 'string', Rule::in(array_keys(self::SHIPPING_COURIERS))],
             'delivery_date' => 'required|date|after_or_equal:today',
             'delivery_time_slot' => 'required|string',
             'greeting_card_message' => 'nullable|string|max:250',
             'cake_text' => 'nullable|string|max:100',
             'notes' => 'nullable|string|max:300',
             'candles_count' => 'required|integer|min:0',
+            'quantities' => ['required', 'array', 'min:1'],
+            'quantities.*' => ['required', 'integer', 'min:1', 'max:99'],
         ]);
 
+        $cart = $request->session()->get('checkout_cart', []);
+
+        if (empty($cart)) {
+            return redirect()->route('cart.index')->with('error', 'Keranjang belanja Anda masih kosong.');
+        }
+
+        $quantities = $validated['quantities'];
+        $cartKeys = array_map('strval', array_keys($cart));
+        $quantityKeys = array_map('strval', array_keys($quantities));
+
+        if (count($cartKeys) !== count($quantityKeys) || array_diff($cartKeys, $quantityKeys) || array_diff($quantityKeys, $cartKeys)) {
+            throw ValidationException::withMessages([
+                'quantities' => 'Jumlah produk checkout tidak valid. Muat ulang halaman dan coba lagi.',
+            ]);
+        }
+
+        foreach (array_keys($cart) as $key) {
+            $cart[$key]['quantity'] = (int) $quantities[$key];
+        }
+
+        $request->session()->put('checkout_cart', $cart);
+        unset($validated['quantities']);
         $request->session()->put('checkout_shipping', $validated);
 
         return redirect()->route('checkout.payment');
@@ -127,7 +185,8 @@ class CheckoutController extends Controller
         foreach ($cart as $item) {
             $subtotal += $item['price'] * $item['quantity'];
         }
-        $shippingCost = 20000;
+        $shippingCost = self::SHIPPING_COURIERS[$shipping['delivery_courier'] ?? 'jnt_express']['cost']
+            ?? self::SHIPPING_COURIERS['jnt_express']['cost'];
         $candlesCount = (int) ($shipping['candles_count'] ?? 0);
         $candleUnitPrice = self::CANDLE_UNIT_PRICE;
         $candleCost = $candlesCount * $candleUnitPrice;
@@ -138,6 +197,10 @@ class CheckoutController extends Controller
             'shipping' => $shipping,
             'subtotal' => $subtotal,
             'shippingCost' => $shippingCost,
+            'deliveryCourier' => self::SHIPPING_COURIERS[$shipping['delivery_courier'] ?? 'jnt_express']['name']
+                ?? self::SHIPPING_COURIERS['jnt_express']['name'],
+            'deliveryEstimate' => self::SHIPPING_COURIERS[$shipping['delivery_courier'] ?? 'jnt_express']['estimate']
+                ?? self::SHIPPING_COURIERS['jnt_express']['estimate'],
             'candlesCount' => $candlesCount,
             'candleUnitPrice' => $candleUnitPrice,
             'candleCost' => $candleCost,
@@ -165,7 +228,9 @@ class CheckoutController extends Controller
         foreach ($cart as $item) {
             $subtotal += $item['price'] * $item['quantity'];
         }
-        $shippingCost = 20000;
+        $deliveryCourier = $shipping['delivery_courier'] ?? 'jnt_express';
+        $courier = self::SHIPPING_COURIERS[$deliveryCourier] ?? self::SHIPPING_COURIERS['jnt_express'];
+        $shippingCost = $courier['cost'];
         $candlesCount = (int) ($shipping['candles_count'] ?? 0);
         $totalAmount = $subtotal + $shippingCost + ($candlesCount * self::CANDLE_UNIT_PRICE);
 
@@ -182,7 +247,7 @@ class CheckoutController extends Controller
 
         $orderNumber = 'LPK-'.now()->format('Ymd').'-'.strtoupper(Str::random(4));
 
-        DB::transaction(function () use ($orderNumber, $user, $store, $totalAmount, $shippingCost, $validated, $shipping, $cart, $candlesCount) {
+        DB::transaction(function () use ($orderNumber, $user, $store, $totalAmount, $shippingCost, $validated, $shipping, $cart, $candlesCount, $courier) {
             $order = Order::create([
                 'order_number' => $orderNumber,
                 'user_id' => $user->id,
@@ -193,6 +258,7 @@ class CheckoutController extends Controller
                 'payment_status' => 'paid',
                 'payment_method' => strtoupper($validated['payment_method']),
                 'delivery_type' => 'delivery',
+                'delivery_courier' => $courier['name'],
                 'delivery_date' => $shipping['delivery_date'],
                 'delivery_time_slot' => $shipping['delivery_time_slot'],
                 'recipient_name' => $shipping['recipient_name'],

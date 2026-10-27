@@ -160,6 +160,13 @@ export default function Show({ order }) {
                                 <span>{order.recipient_phone}</span>
                             </div>
 
+                            {order.delivery_courier && (
+                                <div className="flex items-center gap-2 pt-1 border-t border-gray-50">
+                                    <Truck className="w-3.5 h-3.5 text-crimson-700 flex-shrink-0" />
+                                    <span>Kurir: {order.delivery_courier}</span>
+                                </div>
+                            )}
+
                             <div className="flex items-start gap-2 pt-1 border-t border-gray-50">
                                 <MapPin className="w-3.5 h-3.5 text-crimson-700 mt-0.5 flex-shrink-0" />
                                 <span>{order.delivery_address}</span>

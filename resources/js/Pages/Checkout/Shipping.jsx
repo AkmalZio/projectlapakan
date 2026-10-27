@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import React, { useMemo, useState } from 'react';
+import { Head, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
-import { MapPin, Calendar, Clock, Sparkles, Phone, User, ArrowRight, XCircle } from 'lucide-react';
+import { MapPin, Calendar, Clock, Sparkles, Phone, User, ArrowRight, XCircle, Minus, Plus, Truck } from 'lucide-react';
 
-export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 20000, candleUnitPrice = 3000, shippingData = {} }) {
+export default function Shipping({ cartItems = [], shippingCost = 20000, shippingCouriers = {}, candleUnitPrice = 3000, shippingData = {} }) {
     const [form, setForm] = useState({
         recipient_name: shippingData.recipient_name || '',
         recipient_phone: shippingData.recipient_phone || '',
         delivery_address: shippingData.delivery_address || '',
+        delivery_courier: shippingData.delivery_courier || 'jnt_express',
         delivery_date: shippingData.delivery_date || '',
         delivery_time_slot: shippingData.delivery_time_slot || '10:00 - 14:00',
         greeting_card_message: shippingData.greeting_card_message || '',
@@ -16,11 +17,20 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
         candles_count: shippingData.candles_count ?? 1,
     });
 
+    const [quantities, setQuantities] = useState(
+        Object.fromEntries(cartItems.map((item) => [item.id, item.quantity]))
+    );
     const [errors, setErrors] = useState({});
 
     const candlesCount = Number(form.candles_count) || 0;
     const currentCandleCost = candlesCount * candleUnitPrice;
-    const total = subtotal + shippingCost + currentCandleCost;
+    const currentSubtotal = useMemo(
+        () => cartItems.reduce((sum, item) => sum + item.price * (Number(quantities[item.id]) || 1), 0),
+        [cartItems, quantities]
+    );
+    const selectedCourier = shippingCouriers[form.delivery_courier];
+    const currentShippingCost = selectedCourier?.cost ?? shippingCost;
+    const total = currentSubtotal + currentShippingCost + currentCandleCost;
 
     const formatIDR = (val) => {
         return new Intl.NumberFormat('id-ID', {
@@ -32,9 +42,13 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        router.post(route('checkout.saveShipping'), form, {
+        router.post(route('checkout.saveShipping'), { ...form, quantities }, {
             onError: (err) => setErrors(err),
         });
+    };
+
+    const updateQuantity = (itemId, quantity) => {
+        setQuantities((current) => ({ ...current, [itemId]: quantity }));
     };
 
     const handleCancel = () => {
@@ -98,12 +112,12 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                                         <User className="w-3.5 h-3.5 text-crimson-700" />
-                                        <span>Nama Penerima *</span>
+                                        <span>Nama Lengkap Penerima *</span>
                                     </label>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="Nama lengkap penerima"
+                                        placeholder="Masukkan nama lengkap"
                                         value={form.recipient_name}
                                         onChange={(e) => setForm({ ...form, recipient_name: e.target.value })}
                                         className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
@@ -144,6 +158,48 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
                                 />
                                 {errors.delivery_address && <p className="text-[11px] text-red-600">{errors.delivery_address}</p>}
                             </div>
+
+                            <fieldset className="space-y-2">
+                                <legend className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                                    <Truck className="w-3.5 h-3.5 text-crimson-700" />
+                                    <span>Pilih Kurir *</span>
+                                </legend>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    {Object.entries(shippingCouriers).map(([key, courier]) => (
+                                        <label
+                                            key={key}
+                                            className={`cursor-pointer rounded-xl border p-4 transition ${
+                                                form.delivery_courier === key
+                                                    ? 'border-crimson-700 bg-crimson-50 ring-1 ring-crimson-700'
+                                                    : 'border-gray-200 hover:border-crimson-300'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">{courier.name}</p>
+                                                    <p className="mt-0.5 text-xs text-gray-500">{courier.service}</p>
+                                                </div>
+                                                <input
+                                                    type="radio"
+                                                    name="delivery_courier"
+                                                    value={key}
+                                                    checked={form.delivery_courier === key}
+                                                    onChange={() => setForm({ ...form, delivery_courier: key })}
+                                                    className="mt-1 accent-crimson-800"
+                                                />
+                                            </div>
+                                            <div className="mt-3 flex items-end justify-between gap-2">
+                                                <span className="text-xs text-gray-500">Estimasi {courier.estimate}</span>
+                                                <span className="text-sm font-extrabold text-crimson-800">{formatIDR(courier.cost)}</span>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="text-[11px] leading-relaxed text-gray-500">
+                                    Estimasi dihitung sejak paket diserahkan ke kurir. Tarif dan waktu tiba sebenarnya dapat berubah sesuai alamat dan berat paket.
+                                </p>
+                                {errors.delivery_courier && <p className="text-[11px] text-red-600">{errors.delivery_courier}</p>}
+                            </fieldset>
 
                             {/* Delivery Date & Time Slot */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -251,6 +307,7 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
                         </h3>
 
                         <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto pr-1">
+                            {errors.quantities && <p className="pb-2 text-[11px] text-red-600">{errors.quantities}</p>}
                             {cartItems.map((item) => (
                                 <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
                                     <img
@@ -261,11 +318,41 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
                                     <div className="flex-1 min-w-0">
                                         <h4 className="text-xs font-bold text-gray-900 truncate">{item.name}</h4>
                                         <p className="text-[11px] text-gray-500">
-                                            {item.quantity}x • {formatIDR(item.price)}
+                                            {quantities[item.id]}x • {formatIDR(item.price)}
                                         </p>
+                                        <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-200 p-1">
+                                            <button
+                                                type="button"
+                                                aria-label={`Kurangi jumlah ${item.name}`}
+                                                onClick={() => updateQuantity(item.id, Math.max(1, Number(quantities[item.id]) - 1))}
+                                                className="rounded-md p-1 text-gray-600 hover:bg-gray-100"
+                                            >
+                                                <Minus className="h-3 w-3" />
+                                            </button>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="99"
+                                                aria-label={`Jumlah ${item.name}`}
+                                                value={quantities[item.id]}
+                                                onChange={(e) => updateQuantity(item.id, e.target.value)}
+                                                className="w-10 border-0 p-0 text-center text-xs font-bold text-gray-900 focus:ring-0"
+                                            />
+                                            <button
+                                                type="button"
+                                                aria-label={`Tambah jumlah ${item.name}`}
+                                                onClick={() => updateQuantity(item.id, Math.min(99, Number(quantities[item.id]) + 1))}
+                                                className="rounded-md p-1 text-gray-600 hover:bg-gray-100"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                        {errors[`quantities.${item.id}`] && (
+                                            <p className="mt-1 text-[11px] text-red-600">{errors[`quantities.${item.id}`]}</p>
+                                        )}
                                     </div>
                                     <span className="text-xs font-extrabold text-crimson-800">
-                                        {formatIDR(item.price * item.quantity)}
+                                        {formatIDR(item.price * (Number(quantities[item.id]) || 1))}
                                     </span>
                                 </div>
                             ))}
@@ -274,11 +361,14 @@ export default function Shipping({ cartItems = [], subtotal = 0, shippingCost = 
                         <div className="space-y-2 text-xs text-gray-600 pt-3 border-t border-gray-100">
                             <div className="flex justify-between">
                                 <span>Subtotal</span>
-                                <span className="font-bold text-gray-900">{formatIDR(subtotal)}</span>
+                                <span className="font-bold text-gray-900">{formatIDR(currentSubtotal)}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span>Ongkir Delivery</span>
-                                <span className="font-bold text-gray-900">{formatIDR(shippingCost)}</span>
+                                <span>
+                                    Ongkir {selectedCourier?.name || 'Delivery'}
+                                    {selectedCourier?.estimate ? ` · ${selectedCourier.estimate}` : ''}
+                                </span>
+                                <span className="font-bold text-gray-900">{formatIDR(currentShippingCost)}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>Lilin ({candlesCount} x {formatIDR(candleUnitPrice)})</span>

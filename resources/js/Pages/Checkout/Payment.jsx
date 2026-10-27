@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
-import { QrCode, CreditCard, Copy, CheckCircle2, ArrowRight, ShieldCheck, Clock, MapPin, Calendar, XCircle } from 'lucide-react';
+import { QrCode, CreditCard, Copy, CheckCircle2, ArrowRight, ShieldCheck, Clock, MapPin, Calendar, Truck, XCircle } from 'lucide-react';
 
-export default function Payment({ cartItems = [], shipping = {}, subtotal = 0, shippingCost = 20000, candlesCount = 0, candleUnitPrice = 3000, candleCost = 0, total = 0 }) {
+export default function Payment({ cartItems = [], shipping = {}, subtotal = 0, shippingCost = 20000, deliveryCourier = 'J&T Express', deliveryEstimate = '2-3 hari', candlesCount = 0, candleUnitPrice = 3000, candleCost = 0, total = 0 }) {
     const [selectedMethod, setSelectedMethod] = useState('bca');
     const [copied, setCopied] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -210,9 +210,9 @@ export default function Payment({ cartItems = [], shipping = {}, subtotal = 0, s
                                 type="button"
                                 disabled={processing}
                                 onClick={handleProcessPayment}
-                                className="w-full py-4 px-6 rounded-2xl bg-crimson-800 hover:bg-crimson-900 disabled:opacity-50 text-white font-extrabold text-sm shadow-xl shadow-crimson-900/20 transition hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2"
+                                className="w-full py-4 px-6 rounded-2xl bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-crimson-950 font-extrabold text-sm shadow-xl shadow-amber-900/20 transition hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2"
                             >
-                                <span>{processing ? 'Memproses Pesanan...' : 'Konfirmasi & Selesaikan Pesanan'}</span>
+                                <span>{processing ? 'Memproses Pesanan...' : 'Konfirmasi & Buat Pesanan Sekarang'}</span>
                                 <ArrowRight className="w-4 h-4" />
                             </button>
                             <button
@@ -246,6 +246,10 @@ export default function Payment({ cartItems = [], shipping = {}, subtotal = 0, s
                                     <span>{shipping.delivery_address}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-600">
+                                    <Truck className="w-3.5 h-3.5 text-crimson-700 flex-shrink-0" />
+                                    <span>{deliveryCourier} · estimasi {deliveryEstimate}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-600">
                                     <Calendar className="w-3.5 h-3.5 text-crimson-700 flex-shrink-0" />
                                     <span>{shipping.delivery_date} ({shipping.delivery_time_slot})</span>
                                 </div>
@@ -264,7 +268,7 @@ export default function Payment({ cartItems = [], shipping = {}, subtotal = 0, s
                                 <span className="font-bold text-gray-900">{formatIDR(subtotal)}</span>
                             </div>
                             <div className="flex justify-between text-gray-600">
-                                <span>Ongkir Delivery</span>
+                                <span>Ongkir {deliveryCourier}</span>
                                 <span className="font-bold text-gray-900">{formatIDR(shippingCost)}</span>
                             </div>
                             <div className="flex justify-between text-gray-600">

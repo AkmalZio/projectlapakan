@@ -21,6 +21,7 @@ class Order extends Model
         'payment_status',
         'payment_method',
         'delivery_type',
+        'delivery_courier',
         'delivery_date',
         'delivery_time_slot',
         'recipient_name',

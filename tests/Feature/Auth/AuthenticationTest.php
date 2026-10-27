@@ -36,7 +36,7 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('home', absolute: false));
     }
 
-    public function test_admin_users_are_redirected_to_the_admin_dashboard_after_login(): void
+    public function test_admin_users_are_redirected_to_the_seller_dashboard_after_login(): void
     {
         $user = User::factory()->create([
             'role' => 'admin',
@@ -48,7 +48,7 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('admin.dashboard', absolute: false));
+        $response->assertRedirect(route('seller.dashboard', absolute: false));
     }
 
     public function test_super_admin_users_are_redirected_to_the_super_admin_dashboard_after_login(): void
