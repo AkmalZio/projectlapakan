@@ -2,23 +2,29 @@ import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
 import ProductCard from '@/Components/ProductCard';
-import { Cake, Sparkles, Truck, ShieldCheck, HeartHandshake, ArrowRight, Star, Gift } from 'lucide-react';
+import { Cake, Sparkles, Truck, ShieldCheck, ArrowRight, Star, Gift } from 'lucide-react';
 
 export default function Home({ categories = [], featuredProducts = [] }) {
+    const categoryImages = {
+        'all-category': 'https://images.unsplash.com/photo-1488477181946-6428a0291777?q=80&w=900&auto=format&fit=crop',
+        'bento-cake': 'https://images.unsplash.com/photo-1535141192574-5d4897c13136?q=80&w=900&auto=format&fit=crop',
+        'celebration-cake': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=900&auto=format&fit=crop',
+        'cheesecake-slice': 'https://images.unsplash.com/photo-1565958011703-44f9829ba187?q=80&w=900&auto=format&fit=crop',
+        'pastries-breads': 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=900&auto=format&fit=crop',
+        'cookies-brownies': 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=900&auto=format&fit=crop',
+    };
+
     return (
         <MarketplaceLayout>
             <Head title="Pilihan Kue & Dessert Terbaik untuk Momen Spesialmu" />
 
-            {/* HERO SECTION - Dark Crimson Matching Figma */}
+            {/* Hero */}
             <section className="relative overflow-hidden bg-[linear-gradient(135deg,#6d0f2f,#9f2348,#3b0b1d)] text-white py-16 lg:py-24">
-                {/* Background decorative blurs */}
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-pink-500/10 blur-3xl pointer-events-none" />
                 <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 rounded-full bg-rose-600/10 blur-3xl pointer-events-none" />
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                        
-                        {/* Hero Text */}
                         <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
                             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold tracking-wider text-pink-200">
                                 <Sparkles className="w-3.5 h-3.5 text-pink-300" />
@@ -27,7 +33,8 @@ export default function Home({ categories = [], featuredProducts = [] }) {
 
                             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
                                 Temukan Kue Spesial <br className="hidden sm:inline" />
-                                Untuk <span className="text-amber-300v  decoration-wavy decoration-2">Momen Spesialmu</span>                            </h1>
+                                Untuk <span className="text-amber-300 decoration-wavy decoration-2">Momen Spesialmu</span>
+                            </h1>
 
                             <p className="text-base sm:text-lg text-pink-100/80 max-w-xl mx-auto lg:mx-0 font-normal leading-relaxed">
                                 Pesan kue ulang tahun custom, Korean bento cake, cheesecake lembut, dan sajian manis berkualitas langsung dari pastry chef berpengalaman.
@@ -49,7 +56,6 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                                 </Link>
                             </div>
 
-                            {/* Trust metrics */}
                             <div className="pt-6 border-t border-white/10 flex items-center justify-center lg:justify-start gap-8 text-xs font-medium text-pink-200/80">
                                 <div className="flex items-center gap-1.5">
                                     <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
@@ -62,7 +68,6 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                             </div>
                         </div>
 
-                        {/* Hero Image Showcase */}
                         <div className="lg:col-span-5 flex justify-center">
                             <div className="relative w-full max-w-md">
                                 <div className="absolute inset-0 bg-gradient-to-tr from-pink-500 to-amber-300 rounded-3xl transform rotate-3 opacity-20 blur-lg scale-95" />
@@ -84,12 +89,10 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </section>
 
-            {/* 4 VALUE PROPOSITIONS */}
             <section className="py-10 bg-white border-b border-[#EBE3D3]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -133,15 +136,14 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                 </div>
             </section>
 
-            {/* CATEGORY EXPLORATION */}
-            <section className="py-12 bg-[#FAF6EE]">
+            <section className="py-12 bg-[#FAF6EE] sm:py-14">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                         <div>
                             <span className="text-xs font-bold uppercase tracking-wider text-crimson-700">Kategori Pilihan</span>
                             <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Pilih Sajian Favoritmu</h2>
                         </div>
-                        <Link 
+                        <Link
                             href={route('catalog')}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-crimson-800 hover:text-crimson-900 hover:underline"
                         >
@@ -150,26 +152,45 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                         </Link>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                        {categories.map((category) => (
-                            <Link
-                                key={category.id}
-                                href={route('catalog', { category: category.slug })}
-                                className="group p-5 rounded-2xl bg-white border border-[#EBE3D3] hover:border-crimson-600 hover:shadow-lg transition-all text-center flex flex-col items-center gap-3"
-                            >
-                                <div className="w-14 h-14 rounded-2xl bg-crimson-50 group-hover:bg-crimson-700 text-crimson-700 group-hover:text-white flex items-center justify-center transition-colors">
-                                    <Cake className="w-7 h-7" />
-                                </div>
-                                <h3 className="font-bold text-sm text-gray-800 group-hover:text-crimson-800 transition">
-                                    {category.name}
-                                </h3>
-                            </Link>
-                        ))}
-                    </div>
+                    {categories.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                            {categories.map((category) => (
+                                <Link
+                                    key={category.id}
+                                    href={route('catalog', { category: category.slug })}
+                                    className="group overflow-hidden rounded-2xl border border-[#EBE3D3] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-crimson-700 focus:ring-offset-2"
+                                >
+                                    <div className="relative h-48 overflow-hidden bg-[#efe6d9] sm:h-52">
+                                        <img
+                                            src={categoryImages[category.slug] || categoryImages['all-category']}
+                                            alt={category.name}
+                                            loading="lazy"
+                                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                        />
+                                    </div>
+                                    <div className="min-h-32 bg-white p-5 sm:p-6">
+                                        <h3 className="text-base font-bold text-gray-900 group-hover:text-crimson-800">
+                                            {category.name}
+                                        </h3>
+                                        <p className="mt-2 text-sm leading-6 text-gray-600">
+                                            {category.description || 'Temukan aneka pilihan lezat untuk menemani momenmu.'}
+                                        </p>
+                                        <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-crimson-800">
+                                            Jelajahi kategori
+                                            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                                        </span>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="rounded-2xl border border-dashed border-[#d9c9b8] bg-white px-5 py-8 text-center text-sm text-gray-600">
+                            Kategori akan segera tersedia.
+                        </p>
+                    )}
                 </div>
             </section>
 
-            {/* PRODUK TERBAIK KAMI SECTION - MATCHING FIGMA */}
             <section className="py-16 bg-white border-t border-[#EBE3D3]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center max-w-2xl mx-auto mb-12">
@@ -182,7 +203,6 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                         </p>
                     </div>
 
-                    {/* Products Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                         {featuredProducts.map((product) => (
                             <ProductCard key={product.id} product={product} />
@@ -201,7 +221,6 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                 </div>
             </section>
 
-            {/* SPECIAL CELEBRATION CTA BANNER */}
             <section className="py-16 bg-[#FAF6EE]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="rounded-3xl bg-gradient-to-r from-crimson-900 to-crimson-800 text-white p-8 sm:p-12 lg:p-16 relative overflow-hidden shadow-2xl">

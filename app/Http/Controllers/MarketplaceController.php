@@ -22,6 +22,7 @@ class MarketplaceController extends Controller
         $featuredProducts = Product::with(['category', 'variants'])
             ->where('is_active', true)
             ->where('is_featured', true)
+            ->latest()
             ->take(8)
             ->get();
 

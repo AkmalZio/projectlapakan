@@ -51,21 +51,6 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('seller.dashboard', absolute: false));
     }
 
-    public function test_super_admin_users_are_redirected_to_the_super_admin_dashboard_after_login(): void
-    {
-        $user = User::factory()->create([
-            'role' => 'super_admin',
-        ]);
-
-        $response = $this->post('/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('superadmin.dashboard', absolute: false));
-    }
-
     public function test_customer_dashboard_uses_real_favorite_and_rating_stats(): void
     {
         $user = User::factory()->create([

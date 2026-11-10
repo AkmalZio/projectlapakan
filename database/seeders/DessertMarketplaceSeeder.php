@@ -15,16 +15,6 @@ class DessertMarketplaceSeeder extends Seeder
     public function run(): void
     {
         // 1. Create Users
-        $superAdmin = User::firstOrCreate(
-            ['email' => 'superadmin@lapakan.com'],
-            [
-                'name' => 'Super Admin LAPAKan',
-                'password' => Hash::make('password'),
-                'role' => 'super_admin',
-                'phone' => '081200000001',
-            ]
-        );
-
         $admin = User::firstOrCreate(
             ['email' => 'admin@lapakan.com'],
             [

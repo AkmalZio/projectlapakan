@@ -44,10 +44,6 @@ class AuthenticatedSessionController extends Controller
     protected function redirectToRole(
         User $user,
     ): string {
-        if ($user->isSuperAdmin()) {
-            return route('superadmin.dashboard', absolute: false);
-        }
-
         if ($user->isSeller()) {
             return route('seller.dashboard', absolute: false);
         }

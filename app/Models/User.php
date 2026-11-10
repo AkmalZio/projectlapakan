@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 #[Fillable(['name', 'email', 'password', 'phone', 'address', 'role', 'avatar'])]
 #[Hidden(['password', 'remember_token'])]
@@ -46,11 +47,6 @@ class User extends Authenticatable
         return in_array($this->role, ['admin', 'merchant'], true);
     }
 
-    public function isSuperAdmin(): bool
-    {
-        return $this->role === 'super_admin';
-    }
-
     public function isCustomer(): bool
     {
         return $this->role === 'customer';
@@ -59,6 +55,24 @@ class User extends Authenticatable
     public function store(): HasOne
     {
         return $this->hasOne(Store::class);
+    }
+
+    /**
+     * Get the user's store, creating a default one if it does not exist yet.
+     */
+    public function ownedStore(): Store
+    {
+        return $this->store()->firstOrCreate(
+            ['user_id' => $this->id],
+            [
+                'name' => $this->name.' Store',
+                'slug' => Str::slug($this->name.'-store').'-'.$this->id,
+                'description' => 'Toko penjualan utama dari '.$this->name,
+                'phone' => $this->phone,
+                'city' => 'Jakarta',
+                'is_open' => true,
+            ],
+        );
     }
 
     public function orders(): HasMany

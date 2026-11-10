@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
@@ -9,7 +10,6 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Seller\SellerDashboardController;
 use App\Http\Controllers\Seller\SellerRegistrationController;
-use App\Http\Controllers\SuperAdminController;
 use App\Models\Favorite;
 use App\Models\Review;
 use Illuminate\Support\Facades\Auth;
@@ -57,10 +57,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
         $user = Auth::user();
 
-        if ($user?->isSuperAdmin()) {
-            return redirect()->route('superadmin.dashboard');
-        }
-
         if ($user?->isSeller()) {
             return redirect()->route('seller.dashboard');
         }
@@ -95,13 +91,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::middleware('role:admin,merchant')->group(function () {
         Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
-        Route::post('/admin/products', [AdminDashboardController::class, 'storeProduct'])->name('admin.products.store');
+        Route::get('/admin/products', [AdminController::class, 'products'])->name('admin.products.index');
+        Route::get('/admin/products/create', [AdminController::class, 'createProduct'])->name('admin.products.create');
+        Route::post('/admin/products', [AdminController::class, 'storeProduct'])->name('admin.products.store');
         Route::patch('/admin/orders/{order}/status', [AdminDashboardController::class, 'updateOrderStatus'])->name('admin.orders.update-status');
-    });
-
-    Route::middleware('role:super_admin')->group(function () {
-        Route::get('/super-admin/dashboard', [SuperAdminController::class, 'index'])->name('superadmin.dashboard');
-        Route::patch('/super-admin/users/{user}/role', [SuperAdminController::class, 'updateRole'])->name('superadmin.users.update-role');
     });
 });
 

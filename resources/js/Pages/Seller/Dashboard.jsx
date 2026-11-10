@@ -1,14 +1,13 @@
-import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
+import SellerCenterLayout from '@/Layouts/SellerCenterLayout';
 import { Head, Link } from '@inertiajs/react';
 import {
     AlertTriangle,
     ArrowUpRight,
     CircleDollarSign,
-    LogOut,
     Package,
+    Plus,
     ShoppingBag,
     Store,
-    UserRound,
 } from 'lucide-react';
 
 const orderStatusLabels = {
@@ -21,11 +20,11 @@ const orderStatusLabels = {
 };
 
 const orderStatusStyles = {
-    pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-    confirmed: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-    baking: 'bg-purple-50 text-purple-700 ring-purple-600/20',
-    delivering: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
-    completed: 'bg-green-50 text-green-700 ring-green-600/20',
+    pending: 'bg-[#fff0e2] text-[#9a5720] ring-[#e2bd91]/50',
+    confirmed: 'bg-[#e8f3ec] text-[#28704c] ring-[#9bc9ac]/50',
+    baking: 'bg-[#f7e7ec] text-[#832747] ring-[#d9a6b5]/50',
+    delivering: 'bg-[#e8edf7] text-[#405d8c] ring-[#a9b8d5]/50',
+    completed: 'bg-[#e6f4eb] text-[#28704c] ring-[#9bc9ac]/50',
     cancelled: 'bg-gray-100 text-gray-600 ring-gray-500/20',
 };
 
@@ -39,14 +38,14 @@ function formatCurrency(amount) {
 
 function StatCard({ label, value, description, icon: Icon, accent }) {
     return (
-        <div className="lapakan-dashboard-card flex items-start justify-between gap-4 p-5">
+        <div className="group flex items-start justify-between gap-4 rounded-2xl border border-[#eadfcd] bg-[#fffdf8] p-5 shadow-[0_8px_24px_rgba(74,7,28,0.045)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(74,7,28,0.09)]">
             <div>
-                <p className="text-sm font-medium text-gray-500">{label}</p>
-                <p className="mt-3 text-2xl font-bold tracking-tight text-gray-900">{value}</p>
-                <p className="mt-1 text-xs text-gray-500">{description}</p>
+                <p className="text-sm font-medium text-[#746b64]">{label}</p>
+                <p className="mt-3 break-words text-2xl font-bold tracking-tight text-[#3d1725]">{value}</p>
+                <p className="mt-1 text-xs leading-5 text-[#8b8178]">{description}</p>
             </div>
-            <div className={`rounded-xl p-3 ${accent}`}>
-                <Icon aria-hidden="true" className="h-5 w-5" />
+            <div className={`rounded-2xl p-3.5 transition-transform duration-200 group-hover:rotate-[-4deg] ${accent}`}>
+                <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
             </div>
         </div>
     );
@@ -54,93 +53,98 @@ function StatCard({ label, value, description, icon: Icon, accent }) {
 
 export default function Dashboard({ store, stats = {}, recentOrders = [], lowStockProducts = [] }) {
     return (
-        <MarketplaceLayout title="Dashboard Penjual">
+        <SellerCenterLayout title="Ringkasan" description="Gambaran performa tokomu hari ini.">
             <Head title="Dashboard Penjual" />
 
-            <div className="lapakan-dashboard-shell">
-                <section className="lapakan-dashboard-hero">
-                    <div className="relative z-10 max-w-2xl">
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-pink-100">
-                                <Store aria-hidden="true" className="h-3.5 w-3.5" />
-                                Ruang penjual · {store?.name ?? 'Toko Saya'}
-                            </span>
-                            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${store?.is_open ? 'bg-green-400/15 text-green-100' : 'bg-white/10 text-white/75'}`}>
-                                <span className={`h-1.5 w-1.5 rounded-full ${store?.is_open ? 'bg-green-300' : 'bg-white/50'}`} />
-                                {store?.is_open ? 'Toko buka' : 'Toko tutup'}
-                            </span>
+            <div className="flex w-full flex-col gap-7">
+                <section className="overflow-hidden rounded-[24px] bg-gradient-to-r from-[#4a071c] to-[#7e103c] px-6 py-7 text-white shadow-[0_14px_32px_rgba(74,7,28,0.13)] sm:px-9 sm:py-9">
+                    <div className="relative z-10 flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="max-w-2xl">
+                            <div className="mb-4 flex flex-wrap items-center gap-2.5">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.09] px-3 py-1.5 text-xs font-medium text-[#f9e9ed]">
+                                    <Store aria-hidden="true" className="h-3.5 w-3.5" />
+                                    {store?.name ?? 'Toko Saya'}
+                                </span>
+                                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${store?.is_open ? 'bg-emerald-300/15 text-emerald-100' : 'bg-white/10 text-white/80'}`}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${store?.is_open ? 'bg-emerald-300' : 'bg-white/50'}`} />
+                                    {store?.is_open ? 'Sedang buka' : 'Sedang tutup'}
+                                </span>
+                            </div>
+                            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                                Halo, {store?.name ?? 'penjual'}.
+                            </h1>
+                            <p className="mt-2 max-w-xl text-sm leading-6 text-[#f4dfe5]/85">
+                                Pantau pesanan, penjualan, dan stok produkmu dari sini.
+                            </p>
                         </div>
-                        <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-                            Selamat datang di {store?.name ?? 'toko kamu'}
-                        </h2>
-                        <p className="mt-2 text-sm leading-6 text-white/75">
-                            Pantau pesanan, penjualan, dan ketersediaan produk tokomu dari satu tempat.
-                        </p>
+
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            <Link
+                                href={route('admin.dashboard')}
+                                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#fffaf4] px-4 py-2.5 text-sm font-semibold text-[#4a071c] shadow-sm transition hover:bg-white"
+                            >
+                                Kelola toko
+                                <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+                            </Link>
+                            <Link
+                                href={route('admin.products.create')}
+                                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.08] px-3.5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.15]"
+                            >
+                                <Plus aria-hidden="true" className="h-4 w-4" />
+                                Tambah produk
+                            </Link>
+                        </div>
                     </div>
-                    <Link
-                        href={route('admin.dashboard')}
-                        className="relative z-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-crimson-950 shadow-lg shadow-crimson-950/20 transition hover:-translate-y-0.5 hover:bg-cream-50"
-                    >
-                        Kelola pesanan & produk
-                        <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-                    </Link>
-                    <Link
-                        href={route('profile.edit')}
-                        className="relative z-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-                    >
-                        Profil
-                        <UserRound aria-hidden="true" className="h-4 w-4" />
-                    </Link>
-                    <Link
-                        href={route('logout')}
-                        method="post"
-                        as="button"
-                        className="relative z-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
-                    >
-                        Keluar
-                        <LogOut aria-hidden="true" className="h-4 w-4" />
-                    </Link>
                 </section>
 
-                <section aria-label="Ringkasan performa toko" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard
-                        label="Penjualan bulan ini"
-                        value={formatCurrency(stats.monthly_revenue)}
-                        description="Total pesanan yang sudah dibayar"
-                        icon={CircleDollarSign}
-                        accent="bg-green-50 text-green-700"
-                    />
-                    <StatCard
-                        label="Pesanan perlu diproses"
-                        value={stats.orders_to_process ?? 0}
-                        description="Menunggu konfirmasi atau diproses"
-                        icon={ShoppingBag}
-                        accent="bg-amber-50 text-amber-700"
-                    />
-                    <StatCard
-                        label="Produk aktif"
-                        value={stats.active_products ?? 0}
-                        description="Tersedia untuk dipesan pelanggan"
-                        icon={Package}
-                        accent="bg-blue-50 text-blue-700"
-                    />
-                    <StatCard
-                        label="Stok menipis"
-                        value={stats.low_stock_products ?? 0}
-                        description="Produk aktif dengan stok 5 atau kurang"
-                        icon={AlertTriangle}
-                        accent="bg-rose-50 text-rose-700"
-                    />
+                <section>
+                    <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#9a5466]">Gambaran singkat</p>
+                            <h2 className="mt-1 text-lg font-semibold text-[#3d1725]">Ringkasan tokomu</h2>
+                        </div>
+                        <p className="text-xs text-[#8b8178]">Angka penjualan dihitung dari pesanan yang sudah dibayar.</p>
+                    </div>
+                    <section aria-label="Ringkasan performa toko" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <StatCard
+                            label="Penjualan bulan ini"
+                            value={formatCurrency(stats.monthly_revenue)}
+                            description="Total pesanan yang sudah dibayar"
+                            icon={CircleDollarSign}
+                            accent="bg-[#e6f4eb] text-[#28704c]"
+                        />
+                        <StatCard
+                            label="Pesanan perlu diproses"
+                            value={stats.orders_to_process ?? 0}
+                            description="Menunggu konfirmasi atau diproses"
+                            icon={ShoppingBag}
+                            accent="bg-[#fff0e2] text-[#9a5720]"
+                        />
+                        <StatCard
+                            label="Produk aktif"
+                            value={stats.active_products ?? 0}
+                            description="Tersedia untuk dipesan pelanggan"
+                            icon={Package}
+                            accent="bg-[#f7e7ec] text-[#832747]"
+                        />
+                        <StatCard
+                            label="Stok menipis"
+                            value={stats.low_stock_products ?? 0}
+                            description="Produk aktif dengan stok 5 atau kurang"
+                            icon={AlertTriangle}
+                            accent="bg-[#fce9e7] text-[#a33c36]"
+                        />
+                    </section>
                 </section>
 
                 <section className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.8fr)]">
-                    <div className="lapakan-dashboard-card overflow-hidden">
-                        <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4 sm:px-6">
+                    <div className="overflow-hidden rounded-[24px] border border-[#eadfcd] bg-[#fffdf8] shadow-[0_10px_30px_rgba(74,7,28,0.055)]">
+                        <div className="flex items-center justify-between gap-4 border-b border-[#f0e8dc] px-5 py-5 sm:px-6">
                             <div>
-                                <h2 className="font-semibold text-gray-900">Pesanan terbaru</h2>
-                                <p className="mt-1 text-sm text-gray-500">Aktivitas pesanan tokomu</p>
+                                <h2 className="font-semibold text-[#3d1725]">Pesanan terbaru</h2>
+                                <p className="mt-1 text-sm text-[#8b8178]">Yang baru masuk ke tokomu</p>
                             </div>
-                            <span className="rounded-full bg-cream-100 px-3 py-1 text-xs font-semibold text-crimson-900">
+                            <span className="rounded-full bg-[#f5eadf] px-3 py-1.5 text-xs font-semibold text-[#6b2338]">
                                 {stats.total_orders ?? 0} pesanan
                             </span>
                         </div>
@@ -148,31 +152,31 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                         {recentOrders.length > 0 ? (
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-[38rem] text-left text-sm">
-                                    <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                                    <thead className="bg-[#faf5ed] text-[11px] uppercase tracking-[0.08em] text-[#8b8178]">
                                         <tr>
-                                            <th className="px-6 py-3 font-medium">Pesanan</th>
-                                            <th className="px-6 py-3 font-medium">Pembeli</th>
-                                            <th className="px-6 py-3 font-medium">Tanggal</th>
-                                            <th className="px-6 py-3 font-medium">Total</th>
-                                            <th className="px-6 py-3 font-medium">Status</th>
+                                            <th className="px-6 py-3.5 font-semibold">Pesanan</th>
+                                            <th className="px-6 py-3.5 font-semibold">Pembeli</th>
+                                            <th className="px-6 py-3.5 font-semibold">Tanggal</th>
+                                            <th className="px-6 py-3.5 font-semibold">Total</th>
+                                            <th className="px-6 py-3.5 font-semibold">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-[#f1e9de]">
                                         {recentOrders.map((order) => (
-                                            <tr key={order.id}>
-                                                <td className="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
+                                            <tr key={order.id} className="transition-colors hover:bg-[#fcf8f1]">
+                                                <td className="whitespace-nowrap px-6 py-4 font-semibold text-[#4a071c]">
                                                     {order.order_number}
                                                 </td>
-                                                <td className="whitespace-nowrap px-6 py-4 text-gray-600">
+                                                <td className="whitespace-nowrap px-6 py-4 text-[#625a54]">
                                                     {order.user?.name ?? 'Pelanggan'}
                                                 </td>
-                                                <td className="whitespace-nowrap px-6 py-4 text-gray-500">
+                                                <td className="whitespace-nowrap px-6 py-4 text-[#8b8178]">
                                                     {new Date(order.created_at).toLocaleDateString('id-ID', {
                                                         day: 'numeric',
                                                         month: 'short',
                                                     })}
                                                 </td>
-                                                <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-900">
+                                                <td className="whitespace-nowrap px-6 py-4 font-semibold text-[#3d1725]">
                                                     {formatCurrency(order.total_amount)}
                                                 </td>
                                                 <td className="whitespace-nowrap px-6 py-4">
@@ -191,72 +195,94 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                                 </table>
                             </div>
                         ) : (
-                            <div className="px-6 py-12 text-center">
-                                <ShoppingBag aria-hidden="true" className="mx-auto h-9 w-9 text-gray-300" />
-                                <p className="mt-3 font-medium text-gray-900">Belum ada pesanan</p>
-                                <p className="mt-1 text-sm text-gray-500">
+                            <div className="px-6 py-14 text-center">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5eadf] text-[#8b3b55]">
+                                    <ShoppingBag aria-hidden="true" className="h-5 w-5" />
+                                </div>
+                                <p className="mt-4 font-medium text-[#3d1725]">Belum ada pesanan</p>
+                                <p className="mt-1 text-sm text-[#8b8178]">
                                     Pesanan baru akan muncul di sini.
                                 </p>
                             </div>
                         )}
                     </div>
 
-                    <div className="lapakan-dashboard-card">
-                        <div className="border-b border-gray-100 px-5 py-4 sm:px-6">
-                            <h2 className="font-semibold text-gray-900">Perlu restok</h2>
-                            <p className="mt-1 text-sm text-gray-500">
+                    <div className="overflow-hidden rounded-[24px] border border-[#eadfcd] bg-[#fffdf8] shadow-[0_10px_30px_rgba(74,7,28,0.055)]">
+                        <div className="border-b border-[#f0e8dc] px-5 py-5 sm:px-6">
+                            <div className="flex items-center justify-between gap-3">
+                                <h2 className="font-semibold text-[#3d1725]">Perlu restok</h2>
+                                <span className="rounded-full bg-[#fff0e2] px-2.5 py-1 text-xs font-semibold text-[#9a5720]">
+                                    {stats.low_stock_products ?? 0}
+                                </span>
+                            </div>
+                            <p className="mt-1 text-sm text-[#8b8178]">
                                 Produk aktif dengan stok paling banyak 5
                             </p>
                         </div>
 
                         {lowStockProducts.length > 0 ? (
-                            <ul className="divide-y divide-gray-100">
+                            <ul className="divide-y divide-[#f1e9de]">
                                 {lowStockProducts.map((product) => (
-                                    <li key={product.id} className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6">
-                                        <div className="min-w-0">
-                                            <p className="truncate text-sm font-semibold text-gray-900">
-                                                {product.name}
-                                            </p>
-                                            <p className="mt-1 truncate text-xs text-gray-500">
-                                                {product.category?.name ?? 'Tanpa kategori'}
-                                            </p>
+                                    <li key={product.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-[#fcf8f1] sm:px-6">
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            {product.image ? (
+                                                <img
+                                                    src={product.image}
+                                                    alt=""
+                                                    className="h-11 w-11 shrink-0 rounded-xl border border-[#efe5d8] object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f5eadf] text-[#8b3b55]">
+                                                    <Package aria-hidden="true" className="h-4 w-4" />
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-semibold text-[#3d1725]">
+                                                    {product.name}
+                                                </p>
+                                                <p className="mt-1 truncate text-xs text-[#8b8178]">
+                                                    {product.category?.name ?? 'Tanpa kategori'}
+                                                </p>
+                                            </div>
                                         </div>
                                         <span
                                             className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
                                                 product.stock === 0
                                                     ? 'bg-rose-50 text-rose-700'
-                                                    : 'bg-amber-50 text-amber-700'
+                                                    : 'bg-[#fff0e2] text-[#9a5720]'
                                             }`}
                                         >
-                                            Stok {product.stock}
+                                            {product.stock === 0 ? 'Habis' : `${product.stock} tersisa`}
                                         </span>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
-                            <div className="px-6 py-10 text-center">
-                                <Package aria-hidden="true" className="mx-auto h-8 w-8 text-gray-300" />
-                                <p className="mt-3 text-sm font-medium text-gray-900">
+                            <div className="px-6 py-12 text-center">
+                                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e6f4eb] text-[#28704c]">
+                                    <Package aria-hidden="true" className="h-5 w-5" />
+                                </div>
+                                <p className="mt-4 text-sm font-medium text-[#3d1725]">
                                     Stok produk aman
                                 </p>
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="mt-1 text-xs text-[#8b8178]">
                                     Tidak ada produk aktif yang perlu direstok.
                                 </p>
                             </div>
                         )}
 
-                        <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
+                        <div className="border-t border-[#f0e8dc] px-5 py-4 sm:px-6">
                             <Link
                                 href={route('admin.dashboard')}
-                                className="text-sm font-semibold text-crimson-800 transition hover:text-crimson-600"
+                                className="inline-flex items-center gap-1 text-sm font-semibold text-[#7b1738] transition hover:text-[#a12d51]"
                             >
                                 Buka pengelolaan produk
-                                <span aria-hidden="true"> &rarr;</span>
+                                <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
                             </Link>
                         </div>
                     </div>
                 </section>
             </div>
-        </MarketplaceLayout>
+        </SellerCenterLayout>
     );
 }
