@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Head, Link, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
 import ProductCard from '@/Components/ProductCard';
 import { ShoppingBag, Heart, ShieldCheck, Truck, Clock, Sparkles, Star, ChevronRight, Check } from 'lucide-react';
 
 export default function ProductDetail({ product, relatedProducts = [] }) {
-    const gallery = product.gallery && product.gallery.length > 0 
-        ? product.gallery 
-        : [product.image, 'https://images.unsplash.com/photo-1606890737304-57a1ca8a5b62?q=80&w=800&auto=format&fit=crop', 'https://images.unsplash.com/photo-1588195538326-c5b1e9f80a1b?q=80&w=800&auto=format&fit=crop'];
+    const gallery = product.gallery && product.gallery.length > 0
+        ? product.gallery
+        : [product.image || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=800&auto=format&fit=crop'];
 
     const [selectedImage, setSelectedImage] = useState(gallery[0]);
     const [selectedVariant, setSelectedVariant] = useState(product.variants && product.variants.length > 0 ? product.variants[0] : null);
     const [quantity, setQuantity] = useState(1);
+
+    const availableStock = Math.max(0, Number(selectedVariant?.stock ?? product.stock ?? 0));
+    const isOutOfStock = availableStock === 0;
     const [isFavorited, setIsFavorited] = useState(Boolean(product.is_favorited));
 
     const ratingAverage = Number(product.reviews_avg_rating ?? 0);
@@ -32,8 +36,10 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
         router.post(route('cart.add'), {
             product_id: product.id,
             variant_id: selectedVariant?.id || null,
-            quantity: quantity,
+            quantity: Math.min(quantity, availableStock),
             buy_now: isBuyNow,
+        }, {
+            preserveScroll: !isBuyNow,
         });
     };
 
@@ -48,25 +54,25 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
 
     return (
         <MarketplaceLayout>
-            <Head title={`${product.name} - LAPAKan`} />
+            <Head title={product.name} />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 
                 {/* Breadcrumbs */}
-                <nav className="flex items-center gap-2 text-xs font-semibold text-gray-500 mb-8">
-                    <Link href={route('home')} className="hover:text-crimson-800">Beranda</Link>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                    <Link href={route('catalog')} className="hover:text-crimson-800">Katalog</Link>
+                <nav aria-label="Breadcrumb" className="mb-8 flex min-w-0 items-center gap-2 overflow-hidden text-xs font-semibold text-gray-500">
+                    <Link href={route('home')} className="shrink-0 hover:text-crimson-800">Beranda</Link>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                    <Link href={route('catalog')} className="shrink-0 hover:text-crimson-800">Katalog</Link>
                     {product.category && (
                         <>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                            <Link href={route('catalog', { category: product.category.slug })} className="hover:text-crimson-800">
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                            <Link href={route('catalog', { category: product.category.slug })} className="min-w-0 max-w-[40%] truncate hover:text-crimson-800">
                                 {product.category.name}
                             </Link>
                         </>
                     )}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                    <span className="text-gray-900 font-bold truncate">{product.name}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 truncate font-bold text-gray-900">{product.name}</span>
                 </nav>
 
                 {/* Main Product Layout */}
@@ -76,7 +82,7 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                     <div className="lg:col-span-6 space-y-4">
                         {/* Main Preview */}
                         <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 relative group">
-                            <img
+                            <ImageWithFallback
                                 src={selectedImage}
                                 alt={product.name}
                                 className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
@@ -90,6 +96,7 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                         </div>
 
                         {/* Thumbnails */}
+                        {gallery.length > 1 && (
                         <div className="grid grid-cols-4 gap-3">
                             {gallery.map((img, idx) => (
                                 <button
@@ -102,10 +109,11 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                                             : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
                                     }`}
                                 >
-                                    <img src={img} alt={`thumbnail-${idx}`} className="w-full h-full object-cover" />
+                                    <ImageWithFallback src={img} alt={`thumbnail-${idx}`} className="w-full h-full object-cover" />
                                 </button>
                             ))}
                         </div>
+                        )}
                     </div>
 
                     {/* RIGHT: DETAILS & CUSTOMIZATION FORM */}
@@ -209,20 +217,33 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => setQuantity(quantity + 1)}
-                                        className="w-9 h-9 flex items-center justify-center font-bold text-gray-600 hover:text-crimson-800 hover:bg-gray-50 rounded-r-xl transition"
+                                        onClick={() => setQuantity(Math.min(availableStock, quantity + 1))}
+                                        disabled={quantity >= availableStock}
+                                        className="w-9 h-9 flex items-center justify-center font-bold text-gray-600 hover:text-crimson-800 hover:bg-gray-50 rounded-r-xl transition disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                         +
                                     </button>
                                 </div>
+                                <span className={`text-xs font-semibold ${isOutOfStock ? 'text-red-600' : 'text-gray-500'}`}>
+                                    {isOutOfStock ? 'Stok habis' : `Stok ${availableStock}`}
+                                </span>
                             </div>
 
                             {/* Buttons */}
+                            {product.is_own_product ? (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                                    Ini produk dari tokomu sendiri, jadi tidak bisa dibeli dari akun ini.{' '}
+                                    <Link href={route('admin.products.edit', product.id)} className="font-bold underline">
+                                        Edit produk
+                                    </Link>
+                                </div>
+                            ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                                 <button
                                     type="button"
                                     onClick={() => handleAddToCart(false)}
-                                    className="w-full py-3.5 px-6 rounded-2xl border-2 border-crimson-800 bg-white text-crimson-800 hover:bg-crimson-50 font-extrabold text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-2"
+                                    disabled={isOutOfStock}
+                                    className="w-full py-3.5 px-6 rounded-2xl border-2 border-crimson-800 bg-white text-crimson-800 hover:bg-crimson-50 font-extrabold text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <ShoppingBag className="w-4 h-4" />
                                     <span>Tambah ke Keranjang</span>
@@ -230,18 +251,20 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                                 <button
                                     type="button"
                                     onClick={() => handleAddToCart(true)}
-                                    className="w-full py-3.5 px-6 rounded-2xl bg-crimson-800 hover:bg-crimson-900 text-white font-extrabold text-xs shadow-md shadow-crimson-900/20 transition active:scale-95 flex items-center justify-center gap-2"
+                                    disabled={isOutOfStock}
+                                    className="w-full py-3.5 px-6 rounded-2xl bg-crimson-800 hover:bg-crimson-900 text-white font-extrabold text-xs shadow-md shadow-crimson-900/20 transition active:scale-95 flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <span>Beli Sekarang</span>
+                                    <span>{isOutOfStock ? 'Stok Habis' : 'Beli Sekarang'}</span>
                                 </button>
                             </div>
+                            )}
                         </div>
 
                         {/* Freebies note */}
                         <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-3 text-xs text-gray-500">
                             <div className="flex items-center gap-2">
                                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                                <span>Sudah Termasuk Box & Pisau</span>
+                                <span>{product.includes_knife ? 'Sudah Termasuk Box & Pisau' : 'Sudah Termasuk Box'}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Sparkles className="w-4 h-4 text-pink-600" />
@@ -252,6 +275,42 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                     </div>
 
                 </div>
+
+                {/* REVIEWS */}
+                <section aria-labelledby="reviews-heading" className="mt-12 rounded-3xl border border-[#EBE3D3] bg-white p-6 shadow-sm sm:p-10">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h2 id="reviews-heading" className="text-xl font-extrabold text-gray-900">Ulasan Pembeli</h2>
+                        <span className="text-xs font-semibold text-gray-500">
+                            {reviewCount > 0 ? `${ratingAverage.toFixed(1)} dari 5 · ${reviewCount} ulasan` : 'Belum ada ulasan'}
+                        </span>
+                    </div>
+                    {product.reviews?.length > 0 ? (
+                        <ul className="mt-6 divide-y divide-gray-100">
+                            {product.reviews.map((review) => (
+                                <li key={review.id} className="py-4 first:pt-0 last:pb-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-sm font-bold text-gray-900">{review.user?.name ?? 'Pembeli'}</span>
+                                        <span className="flex" aria-label={`${review.rating} dari 5 bintang`}>
+                                            {[1, 2, 3, 4, 5].map((value) => (
+                                                <Star
+                                                    key={value}
+                                                    aria-hidden="true"
+                                                    className={`h-3.5 w-3.5 ${value <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`}
+                                                />
+                                            ))}
+                                        </span>
+                                        <span className="text-[11px] text-gray-400">
+                                            {new Date(review.created_at).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
+                                        </span>
+                                    </div>
+                                    {review.comment && <p className="mt-1 break-words text-sm text-gray-600">{review.comment}</p>}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="mt-4 text-sm text-gray-500">Ulasan muncul setelah pembeli menerima pesanannya dan memberi rating.</p>
+                    )}
+                </section>
 
                 {/* RELATED PRODUCTS */}
                 {relatedProducts && relatedProducts.length > 0 && (

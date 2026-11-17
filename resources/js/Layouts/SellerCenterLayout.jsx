@@ -12,12 +12,12 @@ import {
     UserRound,
     X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const navigation = [
     { label: 'Ringkasan', routeName: 'seller.dashboard', icon: LayoutDashboard },
     { label: 'Pesanan', routeName: 'admin.dashboard', icon: ClipboardList },
-    { label: 'Produk Saya', routeName: 'admin.products.index', icon: Package },
+    { label: 'Produk Saya', routeName: 'admin.products.index', activeRoutes: ['admin.products.index', 'admin.products.edit'], icon: Package },
     { label: 'Tambah Produk', routeName: 'admin.products.create', icon: PackagePlus },
 ];
 
@@ -39,8 +39,8 @@ function SidebarContent({ user, onNavigate }) {
             </Link>
 
             <nav aria-label="Navigasi Seller Center" className="flex-1 space-y-1 px-3">
-                {navigation.map(({ label, routeName, icon: Icon }) => {
-                    const isActive = route().current(routeName);
+                {navigation.map(({ label, routeName, activeRoutes = [routeName], icon: Icon }) => {
+                    const isActive = activeRoutes.some((name) => route().current(name));
 
                     return (
                         <Link
@@ -99,8 +99,24 @@ export default function SellerCenterLayout({ title, description, actions, childr
     const { auth, flash } = usePage().props;
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    useEffect(() => {
+        if (!isSidebarOpen) {
+            return undefined;
+        }
+
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') {
+                setIsSidebarOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', closeOnEscape);
+
+        return () => document.removeEventListener('keydown', closeOnEscape);
+    }, [isSidebarOpen]);
+
     return (
-        <div className="min-h-screen bg-[#faf6f0] font-sans text-gray-800">
+        <div className="relative min-h-screen overflow-x-clip bg-[#faf6f0] font-sans text-gray-800">
             <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 bg-crimson-950 text-white lg:block">
                 <SidebarContent user={auth.user} />
             </aside>
@@ -127,7 +143,7 @@ export default function SellerCenterLayout({ title, description, actions, childr
                 </div>
             )}
 
-            <div className="lg:pl-64">
+            <div className="min-w-0 lg:pl-64">
                 <header className="sticky top-0 z-20 border-b border-[#eadfcd] bg-[#faf6f0]/95 backdrop-blur">
                     <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">
                         <button
@@ -142,11 +158,11 @@ export default function SellerCenterLayout({ title, description, actions, childr
                             <h1 className="truncate text-xl font-bold tracking-tight text-[#3d1725] sm:text-2xl">{title}</h1>
                             {description && <p className="mt-0.5 text-sm text-[#746b64]">{description}</p>}
                         </div>
-                        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+                        {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
                     </div>
                 </header>
 
-                <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+                <main className="mx-auto w-full min-w-0 max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                     {flash?.success && (
                         <div role="status" className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800">
                             <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />

@@ -1,4 +1,5 @@
 import React from 'react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Head, Link } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
 import { Cake, Sparkles, Heart, ShieldCheck, Clock, Award, ArrowRight } from 'lucide-react';
@@ -6,7 +7,7 @@ import { Cake, Sparkles, Heart, ShieldCheck, Clock, Award, ArrowRight } from 'lu
 export default function About() {
     return (
         <MarketplaceLayout>
-            <Head title="Tentang Kami - LAPAKan" />
+            <Head title="Tentang Kami" />
 
             {/* HEADER BANNER */}
             <div className="bg-gradient-to-r from-crimson-900 via-crimson-800 to-crimson-900 text-white py-16 px-4 sm:px-6 lg:px-8 text-center relative overflow-hidden">
@@ -49,22 +50,22 @@ export default function About() {
 
                     <div className="lg:col-span-6">
                         <div className="grid grid-cols-2 gap-4">
-                            <img
+                            <ImageWithFallback
                                 src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=600&auto=format&fit=crop"
                                 alt="Cake 1"
                                 className="rounded-3xl shadow-lg w-full h-56 object-cover transform hover:-translate-y-1 transition"
                             />
-                            <img
-                                src="https://images.unsplash.com/photo-1535141192574-5d4897c13136?q=80&w=600&auto=format&fit=crop"
+                            <ImageWithFallback
+                                src="https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=600&auto=format&fit=crop"
                                 alt="Cake 2"
                                 className="rounded-3xl shadow-lg w-full h-56 object-cover transform translate-y-6 hover:translate-y-4 transition"
                             />
-                            <img
+                            <ImageWithFallback
                                 src="https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?q=80&w=600&auto=format&fit=crop"
                                 alt="Cake 3"
                                 className="rounded-3xl shadow-lg w-full h-56 object-cover transform hover:-translate-y-1 transition"
                             />
-                            <img
+                            <ImageWithFallback
                                 src="https://images.unsplash.com/photo-1565958011703-44f9829ba187?q=80&w=600&auto=format&fit=crop"
                                 alt="Cake 4"
                                 className="rounded-3xl shadow-lg w-full h-56 object-cover transform translate-y-6 hover:translate-y-4 transition"

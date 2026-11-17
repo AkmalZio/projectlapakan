@@ -1,9 +1,7 @@
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
+import { AuthHeader, AuthInput, AuthSubmitButton } from '@/Components/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, useForm } from '@inertiajs/react';
+import { LockKeyhole } from 'lucide-react';
 
 export default function ConfirmPassword() {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -20,36 +18,30 @@ export default function ConfirmPassword() {
 
     return (
         <GuestLayout>
-            <Head title="Confirm Password" />
+            <Head title="Konfirmasi Password" />
 
-            <div className="mb-4 text-sm text-gray-600">
-                This is a secure area of the application. Please confirm your
-                password before continuing.
-            </div>
+            <div className="space-y-6">
+                <AuthHeader
+                    title="Konfirmasi Password"
+                    description="Ini area yang aman. Masukkan password-mu sekali lagi untuk melanjutkan."
+                />
 
-            <form onSubmit={submit}>
-                <div className="mt-4">
-                    <InputLabel htmlFor="password" value="Password" />
-
-                    <TextInput
+                <form onSubmit={submit} className="space-y-5">
+                    <AuthInput
                         id="password"
                         type="password"
-                        name="password"
+                        label="Password"
+                        icon={LockKeyhole}
                         value={data.password}
-                        className="mt-1 block w-full"
-                        isFocused={true}
+                        autoComplete="current-password"
+                        autoFocus
                         onChange={(e) => setData('password', e.target.value)}
+                        error={errors.password}
                     />
 
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="mt-4 flex items-center justify-end">
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Confirm
-                    </PrimaryButton>
-                </div>
-            </form>
+                    <AuthSubmitButton processing={processing}>Konfirmasi</AuthSubmitButton>
+                </form>
+            </div>
         </GuestLayout>
     );
 }

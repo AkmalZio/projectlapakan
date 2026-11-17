@@ -8,6 +8,7 @@ use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\Seller\SellerDashboardController;
 use App\Http\Controllers\Seller\SellerRegistrationController;
 use App\Models\Favorite;
@@ -48,12 +49,15 @@ Route::middleware(['auth', 'verified'])->prefix('checkout')->name('checkout.')->
     Route::post('/process', [CheckoutController::class, 'process'])->name('process');
 });
 
-// Order Success, List & Tracking Routes
-Route::get('/pesanan', [OrderController::class, 'index'])->name('orders.index');
-Route::get('/orders/success/{orderNumber}', [CheckoutController::class, 'success'])->name('orders.success');
-Route::get('/orders/{orderNumber}', [OrderController::class, 'show'])->name('orders.show');
-
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Order Success, List & Tracking Routes
+    Route::get('/pesanan', [OrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/success/{orderNumber}', [CheckoutController::class, 'success'])->name('orders.success');
+    Route::get('/orders/{orderNumber}', [OrderController::class, 'show'])->name('orders.show');
+    Route::post('/orders/{orderNumber}/payment-proof', [OrderController::class, 'uploadPaymentProof'])->name('orders.payment-proof.store');
+    Route::get('/orders/{orderNumber}/payment-proof', [OrderController::class, 'showPaymentProof'])->name('orders.payment-proof.show');
+    Route::post('/orders/{orderNumber}/reviews', [ReviewController::class, 'store'])->name('orders.reviews.store');
+
     Route::get('/dashboard', function () {
         $user = Auth::user();
 
@@ -65,7 +69,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->where('user_id', $user->id)
             ->latest()
             ->get()
-            ->filter(fn (Favorite $favorite) => $favorite->product !== null)
+            ->filter(fn (Favorite $favorite) => $favorite->product?->is_active === true)
             ->map(fn (Favorite $favorite) => [
                 'id' => $favorite->product->id,
                 'product_id' => $favorite->product_id,
@@ -94,7 +98,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/admin/products', [AdminController::class, 'products'])->name('admin.products.index');
         Route::get('/admin/products/create', [AdminController::class, 'createProduct'])->name('admin.products.create');
         Route::post('/admin/products', [AdminController::class, 'storeProduct'])->name('admin.products.store');
+        Route::get('/admin/products/{product}/edit', [AdminController::class, 'editProduct'])->name('admin.products.edit');
+        Route::patch('/admin/products/{product}', [AdminController::class, 'updateProduct'])->name('admin.products.update');
+        Route::patch('/admin/products/{product}/active', [AdminController::class, 'toggleProductActive'])->name('admin.products.toggle-active');
+        Route::delete('/admin/products/{product}', [AdminController::class, 'destroyProduct'])->name('admin.products.destroy');
         Route::patch('/admin/orders/{order}/status', [AdminDashboardController::class, 'updateOrderStatus'])->name('admin.orders.update-status');
+        Route::patch('/admin/orders/{order}/payment', [AdminDashboardController::class, 'verifyPayment'])->name('admin.orders.verify-payment');
     });
 });
 

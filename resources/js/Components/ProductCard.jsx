@@ -1,4 +1,5 @@
 import React from 'react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Link } from '@inertiajs/react';
 import { Sparkles, Clock, ArrowRight } from 'lucide-react';
 
@@ -16,7 +17,7 @@ export default function ProductCard({ product }) {
         <div className="group lapakan-card rounded-2xl overflow-hidden transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-[0_18px_30px_rgba(53,18,25,0.12)]">
             {/* Image Container */}
             <div className="relative aspect-square overflow-hidden bg-gray-100">
-                <img
+                <ImageWithFallback
                     src={product.image || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=800&auto=format&fit=crop'}
                     alt={product.name}
                     className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
@@ -29,6 +30,10 @@ export default function ProductCard({ product }) {
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/90 backdrop-blur-sm text-white shadow-sm">
                             <Clock className="w-3 h-3" />
                             PO H-{product.preorder_days || 1}
+                        </span>
+                    ) : Number(product.stock) <= 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-700/90 backdrop-blur-sm text-white shadow-sm">
+                            Stok Habis
                         </span>
                     ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600/90 backdrop-blur-sm text-white shadow-sm">

@@ -44,7 +44,7 @@ class MarketplaceController extends Controller
         $query = Product::with(['category', 'variants'])->where('is_active', true);
 
         // Filter by category
-        if ($request->filled('category') && $request->category !== 'all' && $request->category !== 'all-category') {
+        if ($request->filled('category') && $request->category !== 'all' && $request->category !== Category::CATALOG_ALL_SLUG) {
             $query->whereHas('category', function ($q) use ($request) {
                 $q->where('slug', $request->category);
             });
@@ -82,7 +82,7 @@ class MarketplaceController extends Controller
             'categories' => $categories,
             'products' => $products,
             'filters' => [
-                'category' => $request->category ?? 'all-category',
+                'category' => $request->category ?? Category::CATALOG_ALL_SLUG,
                 'search' => $request->search ?? '',
                 'min_price' => $request->min_price ?? 0,
                 'max_price' => $request->max_price ?? 1000000,
@@ -96,7 +96,14 @@ class MarketplaceController extends Controller
      */
     public function show(string $slug): Response
     {
-        $product = Product::with(['category', 'store', 'variants', 'reviews.user'])
+        $product = Product::with([
+            'category',
+            'store:id,user_id,name,slug,city',
+            'variants',
+            'reviews' => fn ($query) => $query->latest()->limit(20),
+            // Only the reviewer's name is public; never send their email, phone or address.
+            'reviews.user:id,name',
+        ])
             ->withAvg('reviews', 'rating')
             ->withCount('reviews')
             ->where('slug', $slug)
@@ -104,6 +111,7 @@ class MarketplaceController extends Controller
             ->firstOrFail();
 
         $product->is_favorited = auth()->check() && $product->favorites()->where('user_id', auth()->id())->exists();
+        $product->is_own_product = auth()->check() && (int) $product->store?->user_id === (int) auth()->id();
 
         $relatedProducts = Product::with('category')
             ->where('category_id', $product->category_id)

@@ -51,6 +51,20 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('seller.dashboard', absolute: false));
     }
 
+    public function test_merchants_return_to_the_seller_page_they_requested_before_login(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+
+        $this->get(route('admin.products.create'))->assertRedirect(route('login'));
+
+        $response = $this->post('/login', [
+            'email' => $merchant->email,
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect(route('admin.products.create'));
+    }
+
     public function test_customer_dashboard_uses_real_favorite_and_rating_stats(): void
     {
         $user = User::factory()->create([
@@ -137,11 +151,12 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->post('/login', [
+        $response = $this->post('/login', [
             'email' => $user->email,
             'password' => 'wrong-password',
         ]);
 
+        $response->assertSessionHasErrors(['email' => 'Email atau kata sandi yang Anda masukkan salah.']);
         $this->assertGuest();
     }
 

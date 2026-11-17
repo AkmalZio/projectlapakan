@@ -1,35 +1,61 @@
 import React, { useMemo, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { MapPin, Calendar, Clock, Sparkles, Phone, User, ArrowRight, XCircle, Minus, Plus, Truck } from 'lucide-react';
 
-export default function Shipping({ cartItems = [], shippingCost = 20000, shippingCouriers = {}, candleUnitPrice = 3000, shippingData = {} }) {
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=800&auto=format&fit=crop';
+
+/** Today's date (YYYY-MM-DD) in the buyer's own timezone, used as the earliest delivery date. */
+const localToday = () => {
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+export default function Shipping({ cartItems = [], stores = [], shippingCost = 0, shippingCouriers = {}, deliveryTimeSlots = {}, maxCandles = 100, storeCount = 1, candleUnitPrice = 3000, shippingData = {} }) {
+    const timeSlotKeys = Object.keys(deliveryTimeSlots);
     const [form, setForm] = useState({
         recipient_name: shippingData.recipient_name || '',
         recipient_phone: shippingData.recipient_phone || '',
         delivery_address: shippingData.delivery_address || '',
         delivery_courier: shippingData.delivery_courier || 'jnt_express',
         delivery_date: shippingData.delivery_date || '',
-        delivery_time_slot: shippingData.delivery_time_slot || '10:00 - 14:00',
+        delivery_time_slot: timeSlotKeys.includes(shippingData.delivery_time_slot) ? shippingData.delivery_time_slot : (timeSlotKeys[0] || ''),
         greeting_card_message: shippingData.greeting_card_message || '',
-        cake_text: shippingData.cake_text || '',
         notes: shippingData.notes || '',
-        candles_count: shippingData.candles_count ?? 1,
     });
+    // Candles and cake text are chosen per store, because each store bakes and ships its own package.
+    const [customizations, setCustomizations] = useState(
+        Object.fromEntries(
+            stores.map((store) => [
+                store.store_id,
+                {
+                    candles_count: shippingData.customizations?.[store.store_id]?.candles_count ?? 0,
+                    cake_text: shippingData.customizations?.[store.store_id]?.cake_text ?? '',
+                },
+            ]),
+        ),
+    );
 
     const [quantities, setQuantities] = useState(
         Object.fromEntries(cartItems.map((item) => [item.id, item.quantity]))
     );
     const [errors, setErrors] = useState({});
+    const [processing, setProcessing] = useState(false);
 
-    const candlesCount = Number(form.candles_count) || 0;
+    const candlesCount = Object.values(customizations).reduce((sum, customization) => sum + (Number(customization.candles_count) || 0), 0);
     const currentCandleCost = candlesCount * candleUnitPrice;
+    const updateCustomization = (storeId, field, value) => {
+        setCustomizations((current) => ({ ...current, [storeId]: { ...current[storeId], [field]: value } }));
+    };
     const currentSubtotal = useMemo(
         () => cartItems.reduce((sum, item) => sum + item.price * (Number(quantities[item.id]) || 1), 0),
         [cartItems, quantities]
     );
     const selectedCourier = shippingCouriers[form.delivery_courier];
-    const currentShippingCost = selectedCourier?.cost ?? shippingCost;
+    const currentShippingCost = selectedCourier ? selectedCourier.cost * storeCount : shippingCost;
     const total = currentSubtotal + currentShippingCost + currentCandleCost;
 
     const formatIDR = (val) => {
@@ -42,8 +68,10 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        router.post(route('checkout.saveShipping'), { ...form, quantities }, {
+        router.post(route('checkout.saveShipping'), { ...form, customizations, quantities }, {
+            onStart: () => setProcessing(true),
             onError: (err) => setErrors(err),
+            onFinish: () => setProcessing(false),
         });
     };
 
@@ -59,7 +87,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
 
     return (
         <MarketplaceLayout>
-            <Head title="Checkout - Data Pengiriman - LAPAKan" />
+            <Head title="Checkout - Data Pengiriman" />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                 
@@ -99,7 +127,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
                     
                     {/* LEFT FORM: SHIPPING & CUSTOMIZATION */}
-                    <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-10 border border-[#EBE3D3] shadow-sm space-y-8">
+                    <div className="min-w-0 lg:col-span-8 bg-white rounded-3xl p-6 sm:p-10 border border-[#EBE3D3] shadow-sm space-y-8">
                         <div>
                             <h2 className="text-2xl font-extrabold text-gray-900">Informasi Pengiriman & Kustom Kue</h2>
                             <p className="text-xs text-gray-500 mt-1">Lengkapi alamat dan instruksi khusus pembuatan kue untuk baker kami.</p>
@@ -117,6 +145,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                     <input
                                         type="text"
                                         required
+                                        maxLength={100}
                                         placeholder="Masukkan nama lengkap"
                                         value={form.recipient_name}
                                         onChange={(e) => setForm({ ...form, recipient_name: e.target.value })}
@@ -133,6 +162,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                     <input
                                         type="tel"
                                         required
+                                        maxLength={20}
                                         placeholder="08xxxxxxxxxx"
                                         value={form.recipient_phone}
                                         onChange={(e) => setForm({ ...form, recipient_phone: e.target.value })}
@@ -151,6 +181,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                 <textarea
                                     rows={3}
                                     required
+                                    maxLength={500}
                                     placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, patokan alamat..."
                                     value={form.delivery_address}
                                     onChange={(e) => setForm({ ...form, delivery_address: e.target.value })}
@@ -211,7 +242,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                     <input
                                         type="date"
                                         required
-                                        min={new Date().toISOString().split('T')[0]}
+                                        min={localToday()}
                                         value={form.delivery_date}
                                         onChange={(e) => setForm({ ...form, delivery_date: e.target.value })}
                                         className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700 cursor-pointer"
@@ -225,14 +256,16 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                         <span>Pilihan Slot Waktu *</span>
                                     </label>
                                     <select
+                                        required
                                         value={form.delivery_time_slot}
                                         onChange={(e) => setForm({ ...form, delivery_time_slot: e.target.value })}
                                         className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700 cursor-pointer"
                                     >
-                                        <option value="09:00 - 12:00">Pagi (09:00 - 12:00 WIB)</option>
-                                        <option value="13:00 - 17:00">Siang / Sore (13:00 - 17:00 WIB)</option>
-                                        <option value="18:00 - 20:00">Malam (18:00 - 20:00 WIB)</option>
+                                        {Object.entries(deliveryTimeSlots).map(([value, label]) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
                                     </select>
+                                    {errors.delivery_time_slot && <p className="text-[11px] text-red-600">{errors.delivery_time_slot}</p>}
                                 </div>
                             </div>
 
@@ -243,50 +276,109 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                     <span>Kustomisasi Spesial Kue</span>
                                 </h3>
 
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-700">Tulisan di Atas Kue</label>
-                                    <input
-                                        type="text"
-                                        maxLength={35}
-                                        placeholder="Contoh: Happy Birthday Sarah!"
-                                        value={form.cake_text}
-                                        onChange={(e) => setForm({ ...form, cake_text: e.target.value })}
-                                        className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
-                                    />
-                                    <span className="text-[10px] text-gray-400">Akan dilukis oleh pastry chef</span>
-                                </div>
+                                {storeCount > 1 && (
+                                    <p className="text-[11px] leading-relaxed text-gray-500">
+                                        Pesananmu dikirim oleh {storeCount} toko berbeda. Atur tulisan kue dan lilin untuk setiap toko;
+                                        lilin dan tulisan hanya dikirim bersama pesanan toko tersebut.
+                                    </p>
+                                )}
+                                {errors.customizations && <p className="text-[11px] text-red-600">{errors.customizations}</p>}
 
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-700" htmlFor="candles_count">Jumlah Lilin Ulang Tahun</label>
-                                    <input
-                                        id="candles_count"
-                                        type="number"
-                                        min="0"
-                                        value={form.candles_count}
-                                        onChange={(e) => setForm({ ...form, candles_count: e.target.value })}
-                                        className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
-                                    />
-                                    <span className="text-[10px] text-gray-400">{formatIDR(candleUnitPrice)} per lilin</span>
-                                    {errors.candles_count && <p className="text-[11px] text-red-600">{errors.candles_count}</p>}
-                                </div>
+                                {stores.map((store) => {
+                                    const customization = customizations[store.store_id] ?? { candles_count: 0, cake_text: '' };
+                                    const errorKey = `customizations.${store.store_id}`;
+
+                                    return (
+                                        <div
+                                            key={store.store_id}
+                                            className={storeCount > 1 ? 'space-y-3 rounded-2xl border border-[#EBE3D3] bg-[#FDFAF5] p-4' : 'space-y-4'}
+                                        >
+                                            {storeCount > 1 && (
+                                                <p className="text-xs font-bold text-gray-900">
+                                                    {store.store_name}
+                                                    <span className="font-normal text-gray-500"> · {store.items.map((item) => item.name).join(', ')}</span>
+                                                </p>
+                                            )}
+
+                                            {store.allows_cake_text ? (
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-gray-700" htmlFor={`cake_text_${store.store_id}`}>
+                                                        Tulisan di Atas Kue
+                                                    </label>
+                                                    <input
+                                                        id={`cake_text_${store.store_id}`}
+                                                        type="text"
+                                                        maxLength={100}
+                                                        placeholder="Contoh: Happy Birthday Sarah!"
+                                                        value={customization.cake_text}
+                                                        onChange={(e) => updateCustomization(store.store_id, 'cake_text', e.target.value)}
+                                                        className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
+                                                    />
+                                                    <span className="text-[10px] text-gray-400">Akan dilukis oleh pastry chef pada kue yang bisa diberi tulisan</span>
+                                                    {errors[`${errorKey}.cake_text`] && (
+                                                        <p className="text-[11px] text-red-600">{errors[`${errorKey}.cake_text`]}</p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11px] text-gray-500">Produk dari toko ini tidak bisa diberi tulisan.</p>
+                                            )}
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-gray-700" htmlFor={`candles_count_${store.store_id}`}>
+                                                    Jumlah Lilin Ulang Tahun
+                                                </label>
+                                                <input
+                                                    id={`candles_count_${store.store_id}`}
+                                                    type="number"
+                                                    min="0"
+                                                    max={maxCandles}
+                                                    value={customization.candles_count}
+                                                    onChange={(e) => updateCustomization(store.store_id, 'candles_count', e.target.value)}
+                                                    className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
+                                                />
+                                                <span className="text-[10px] text-gray-400">{formatIDR(candleUnitPrice)} per lilin, isi 0 jika tidak perlu</span>
+                                                {errors[`${errorKey}.candles_count`] && (
+                                                    <p className="text-[11px] text-red-600">{errors[`${errorKey}.candles_count`]}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
 
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-gray-700">Pesan Kartu Ucapan (Opsional)</label>
                                     <textarea
                                         rows={2}
+                                        maxLength={250}
                                         placeholder="Pesan manis yang ingin dicetak di kartu ucapan hadiah..."
                                         value={form.greeting_card_message}
                                         onChange={(e) => setForm({ ...form, greeting_card_message: e.target.value })}
                                         className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
                                     />
+                                    {errors.greeting_card_message && <p className="text-[11px] text-red-600">{errors.greeting_card_message}</p>}
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-700" htmlFor="notes">Catatan untuk Penjual (Opsional)</label>
+                                    <textarea
+                                        id="notes"
+                                        rows={2}
+                                        maxLength={300}
+                                        placeholder="Contoh: tanpa kacang, titip di satpam..."
+                                        value={form.notes}
+                                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                                        className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-crimson-700"
+                                    />
+                                    {errors.notes && <p className="text-[11px] text-red-600">{errors.notes}</p>}
                                 </div>
                             </div>
 
                             <button
                                 type="submit"
-                                className="w-full py-4 px-6 rounded-2xl bg-crimson-800 hover:bg-crimson-900 text-white font-extrabold text-sm shadow-lg shadow-crimson-900/20 transition hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2"
+                                disabled={processing}
+                                className="w-full py-4 px-6 rounded-2xl bg-crimson-800 hover:bg-crimson-900 disabled:opacity-60 text-white font-extrabold text-sm shadow-lg shadow-crimson-900/20 transition hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2"
                             >
-                                <span>Lanjut ke Pembayaran</span>
+                                <span>{processing ? 'Menyimpan...' : 'Lanjut ke Pembayaran'}</span>
                                 <ArrowRight className="w-4 h-4" />
                             </button>
                             <button
@@ -301,7 +393,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                     </div>
 
                     {/* RIGHT: ORDER SUMMARY */}
-                    <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-[#EBE3D3] shadow-sm space-y-6 sticky top-28">
+                    <div className="min-w-0 lg:col-span-4 bg-white rounded-3xl p-6 border border-[#EBE3D3] shadow-sm space-y-6 lg:sticky lg:top-28">
                         <h3 className="text-base font-extrabold text-gray-900 pb-3 border-b border-gray-100">
                             Pesananmu ({cartItems.length} Produk)
                         </h3>
@@ -310,13 +402,14 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                             {errors.quantities && <p className="pb-2 text-[11px] text-red-600">{errors.quantities}</p>}
                             {cartItems.map((item) => (
                                 <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
-                                    <img
-                                        src={item.image}
+                                    <ImageWithFallback
+                                        src={item.image || FALLBACK_IMAGE}
                                         alt={item.name}
                                         className="w-12 h-12 rounded-xl object-cover bg-gray-100 flex-shrink-0"
                                     />
                                     <div className="flex-1 min-w-0">
                                         <h4 className="text-xs font-bold text-gray-900 truncate">{item.name}</h4>
+                                        {item.variant_name && <p className="text-[11px] text-gray-500 truncate">{item.variant_name}</p>}
                                         <p className="text-[11px] text-gray-500">
                                             {quantities[item.id]}x • {formatIDR(item.price)}
                                         </p>
@@ -367,6 +460,7 @@ export default function Shipping({ cartItems = [], shippingCost = 20000, shippin
                                 <span>
                                     Ongkir {selectedCourier?.name || 'Delivery'}
                                     {selectedCourier?.estimate ? ` · ${selectedCourier.estimate}` : ''}
+                                    {storeCount > 1 ? ` · ${storeCount} toko` : ''}
                                 </span>
                                 <span className="font-bold text-gray-900">{formatIDR(currentShippingCost)}</span>
                             </div>

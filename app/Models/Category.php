@@ -10,6 +10,12 @@ class Category extends Model
 {
     use HasFactory;
 
+    /**
+     * Slug of the pseudo category that the catalog uses as "show everything".
+     * Products must never be filed under it.
+     */
+    public const CATALOG_ALL_SLUG = 'all-category';
+
     protected $fillable = [
         'name',
         'slug',

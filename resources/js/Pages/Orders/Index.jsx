@@ -1,4 +1,6 @@
 import React from 'react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
+import PaymentStatusBadge from '@/Components/PaymentStatusBadge';
 import { Head, Link, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
 import {
@@ -59,6 +61,7 @@ const STATUS_CONFIG = {
 const TABS = [
     { key: 'all', label: 'Semua' },
     { key: 'pending', label: 'Menunggu' },
+    { key: 'confirmed', label: 'Dikonfirmasi' },
     { key: 'baking', label: 'Sedang Dibuat' },
     { key: 'delivering', label: 'Dikirim' },
     { key: 'completed', label: 'Selesai' },
@@ -72,6 +75,13 @@ const formatIDR = (val) =>
         minimumFractionDigits: 0,
     }).format(val ?? 0);
 
+const formatDate = (value) => {
+    if (!value) return '-';
+    const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+
+    return new Date(year, month - 1, day).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
 /* ─── Order Card ─────────────────────────────────────────────── */
 function OrderCard({ order }) {
     const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.pending;
@@ -80,23 +90,32 @@ function OrderCard({ order }) {
     return (
         <div className="bg-white rounded-2xl border border-[#EBE3D3] shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
             {/* Card Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#F0E8DA] bg-[#FDFAF5]">
-                <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-[#F0E8DA] bg-[#FDFAF5]">
+                <div className="flex min-w-0 items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-crimson-700 to-crimson-900 flex items-center justify-center shadow-sm">
                         <Receipt className="w-4 h-4 text-pink-100" />
                     </div>
                     <div>
                         <p className="text-[11px] text-gray-400 font-medium">No. Pesanan</p>
-                        <p className="font-mono font-bold text-sm text-crimson-900">#{order.order_number}</p>
+                        <p className="break-all font-mono font-bold text-sm text-crimson-900">#{order.order_number}</p>
+                        {order.store_name && <p className="text-[11px] font-semibold text-gray-500">{order.store_name}</p>}
                     </div>
                 </div>
 
-                {/* Status Badge */}
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.color}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                    {cfg.label}
-                </span>
+                {/* Status Badges */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold ${cfg.color}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                        {cfg.label}
+                    </span>
+                    {order.status !== 'cancelled' && <PaymentStatusBadge status={order.payment_status} />}
+                </div>
             </div>
+            {order.payment_status === 'unpaid' && order.status === 'pending' && (
+                <p className="border-b border-amber-100 bg-amber-50 px-5 py-2 text-[11px] font-semibold text-amber-800">
+                    Transfer lalu unggah bukti pembayaran di detail pesanan agar penjual bisa memproses pesananmu.
+                </p>
+            )}
 
             {/* Product List (max 2 items preview) */}
             <div className="px-5 py-4 space-y-3">
@@ -105,7 +124,7 @@ function OrderCard({ order }) {
                         {/* Product image or fallback */}
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center flex-shrink-0 border border-pink-100 overflow-hidden">
                             {item.product_image ? (
-                                <img
+                                <ImageWithFallback
                                     src={item.product_image}
                                     alt={item.product_name}
                                     className="w-full h-full object-cover"
@@ -135,7 +154,7 @@ function OrderCard({ order }) {
                     {order.delivery_date && (
                         <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
                             <CalendarDays className="w-3.5 h-3.5 text-crimson-400" />
-                            <span>Kirim: {order.delivery_date}</span>
+                            <span>Kirim: {formatDate(order.delivery_date)}</span>
                         </div>
                     )}
                     <div className="flex items-center gap-1.5">
@@ -194,7 +213,7 @@ export default function OrdersIndex({ orders = [], activeStatus = 'all' }) {
 
     return (
         <MarketplaceLayout>
-            <Head title="Pesanan Saya - LAPAKan" />
+            <Head title="Pesanan Saya" />
 
             {/* ─ Hero Sub-banner ─ */}
             <div className="bg-gradient-to-r from-crimson-900 via-crimson-800 to-crimson-950 text-white py-12">
@@ -223,8 +242,8 @@ export default function OrdersIndex({ orders = [], activeStatus = 'all' }) {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
                 {/* ─ Status Tabs ─ */}
-                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 mb-8">
-                    <div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap pb-2">
+                <div className="mb-8 w-full max-w-full overflow-x-auto">
+                    <div className="flex w-max gap-2 pb-2 sm:w-auto sm:flex-wrap">
                         {TABS.map((tab) => {
                             const isActive = activeStatus === tab.key;
                             return (

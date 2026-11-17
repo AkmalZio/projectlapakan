@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,41 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Order extends Model
 {
     use HasFactory;
+
+    /**
+     * Order statuses in the order a seller moves through them.
+     *
+     * @var list<string>
+     */
+    public const STATUSES = ['pending', 'confirmed', 'baking', 'delivering', 'completed', 'cancelled'];
+
+    /**
+     * Statuses after which the order can no longer be changed.
+     *
+     * @var list<string>
+     */
+    public const FINAL_STATUSES = ['completed', 'cancelled'];
+
+    /**
+     * Statuses a seller may set while the payment has not been verified yet.
+     *
+     * @var list<string>
+     */
+    public const STATUSES_ALLOWED_BEFORE_PAYMENT = ['pending', 'cancelled'];
+
+    /**
+     * Payment statuses of the manual bank-transfer flow:
+     * unpaid -> pending_verification (proof uploaded) -> paid (verified) or back to unpaid (rejected).
+     * A cancelled order that had money involved becomes refunded.
+     *
+     * @var list<string>
+     */
+    public const PAYMENT_STATUSES = ['unpaid', 'pending_verification', 'paid', 'refunded'];
+
+    /**
+     * Hours the buyer has to upload a transfer proof before an unpaid order is cancelled automatically.
+     */
+    public const PAYMENT_WINDOW_HOURS = 24;
 
     protected $fillable = [
         'order_number',
@@ -20,6 +56,11 @@ class Order extends Model
         'status',
         'payment_status',
         'payment_method',
+        'payment_proof',
+        'payment_proof_uploaded_at',
+        'payment_rejection_reason',
+        'payment_due_at',
+        'paid_at',
         'delivery_type',
         'delivery_courier',
         'delivery_date',
@@ -32,14 +73,78 @@ class Order extends Model
         'candles_count',
     ];
 
+    /**
+     * The proof is stored on the private disk; its path is never sent to the browser.
+     *
+     * @var list<string>
+     */
+    protected $hidden = ['payment_proof'];
+
+    /**
+     * @var list<string>
+     */
+    protected $appends = ['has_payment_proof'];
+
     protected function casts(): array
     {
         return [
             'total_amount' => 'decimal:2',
             'shipping_cost' => 'decimal:2',
-            'delivery_date' => 'date',
+            'delivery_date' => 'date:Y-m-d',
             'candles_count' => 'integer',
+            'payment_proof_uploaded_at' => 'datetime',
+            'payment_due_at' => 'datetime',
+            'paid_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return Attribute<bool, never>
+     */
+    protected function hasPaymentProof(): Attribute
+    {
+        return Attribute::get(fn (): bool => filled($this->payment_proof));
+    }
+
+    public function hasFinalStatus(): bool
+    {
+        return in_array($this->status, self::FINAL_STATUSES, true);
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    /**
+     * Whether the buyer may (re)upload a transfer proof for this order.
+     */
+    public function acceptsPaymentProof(): bool
+    {
+        return ! $this->hasFinalStatus()
+            && in_array($this->payment_status, ['unpaid', 'pending_verification'], true);
+    }
+
+    /**
+     * Cancel the order: return the purchased stock and refund money that was (claimed to be) transferred.
+     * An unpaid order stays unpaid. Call inside a transaction with the order locked and its items loaded.
+     */
+    public function cancel(): void
+    {
+        foreach ($this->items as $item) {
+            Product::whereKey($item->product_id)->increment('stock', $item->quantity);
+
+            if ($item->product_variant_id) {
+                ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
+            }
+        }
+
+        $this->update([
+            'status' => 'cancelled',
+            'payment_status' => in_array($this->payment_status, ['paid', 'pending_verification'], true)
+                ? 'refunded'
+                : $this->payment_status,
+        ]);
     }
 
     public function user(): BelongsTo

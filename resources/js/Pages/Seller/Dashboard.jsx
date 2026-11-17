@@ -1,4 +1,5 @@
 import SellerCenterLayout from '@/Layouts/SellerCenterLayout';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Head, Link } from '@inertiajs/react';
 import {
     AlertTriangle,
@@ -150,7 +151,7 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                         </div>
 
                         {recentOrders.length > 0 ? (
-                            <div className="overflow-x-auto">
+                            <div className="relative overflow-x-auto">
                                 <table className="w-full min-w-[38rem] text-left text-sm">
                                     <thead className="bg-[#faf5ed] text-[11px] uppercase tracking-[0.08em] text-[#8b8178]">
                                         <tr>
@@ -226,7 +227,7 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                                     <li key={product.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-[#fcf8f1] sm:px-6">
                                         <div className="flex min-w-0 items-center gap-3">
                                             {product.image ? (
-                                                <img
+                                                <ImageWithFallback
                                                     src={product.image}
                                                     alt=""
                                                     className="h-11 w-11 shrink-0 rounded-xl border border-[#efe5d8] object-cover"
@@ -273,7 +274,7 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
 
                         <div className="border-t border-[#f0e8dc] px-5 py-4 sm:px-6">
                             <Link
-                                href={route('admin.dashboard')}
+                                href={route('admin.products.index')}
                                 className="inline-flex items-center gap-1 text-sm font-semibold text-[#7b1738] transition hover:text-[#a12d51]"
                             >
                                 Buka pengelolaan produk

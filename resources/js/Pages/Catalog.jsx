@@ -14,7 +14,7 @@ export default function Catalog({ categories = [], products = { data: [] }, filt
         router.get(route('catalog'), {
             category: categorySlug,
             search: searchTerm,
-            max_price: newMaxPrice,
+            max_price: Number(newMaxPrice) < 1000000 ? newMaxPrice : undefined,
             sort: newSort,
         }, {
             preserveState: true,
@@ -40,7 +40,7 @@ export default function Catalog({ categories = [], products = { data: [] }, filt
 
     return (
         <MarketplaceLayout>
-            <Head title="Katalog Produk Kue & Dessert - LAPAKan" />
+            <Head title="Katalog Produk Kue & Dessert" />
 
             {/* SUB-HERO BANNER */}
             <div className="bg-gradient-to-r from-crimson-900 via-crimson-800 to-crimson-900 text-white py-12 px-4 sm:px-6 lg:px-8 border-b-2 border-crimson-700 relative overflow-hidden">
@@ -155,7 +155,7 @@ export default function Catalog({ categories = [], products = { data: [] }, filt
                         {/* Control Bar: Count & Sort */}
                         <div className="bg-white rounded-2xl p-4 border border-[#EBE3D3] shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
                             <p className="text-xs font-semibold text-gray-600">
-                                Menampilkan <strong className="text-gray-900">{products.data ? products.data.length : products.length}</strong> produk kue pilihan
+                                Menampilkan <strong className="text-gray-900">{products.total ?? (products.data ? products.data.length : products.length)}</strong> produk kue pilihan
                             </p>
 
                             <div className="flex items-center gap-2">
@@ -202,21 +202,31 @@ export default function Catalog({ categories = [], products = { data: [] }, filt
 
                         {/* Pagination links if available */}
                         {products.links && products.links.length > 3 && (
-                            <div className="flex justify-center items-center gap-1 pt-6">
-                                {products.links.map((link, idx) => (
-                                    <Link
-                                        key={idx}
-                                        href={link.url || '#'}
-                                        dangerouslySetInnerHTML={{ __html: link.label }}
-                                        className={`px-3.5 py-2 text-xs font-bold rounded-xl transition ${
-                                            link.active
-                                                ? 'bg-crimson-800 text-white'
-                                                : link.url
-                                                ? 'bg-white text-gray-700 hover:bg-crimson-50 border border-[#EBE3D3]'
-                                                : 'text-gray-300 pointer-events-none'
-                                        }`}
-                                    />
-                                ))}
+                            <div className="flex flex-wrap justify-center items-center gap-1 pt-6">
+                                {products.links.map((link, idx) => {
+                                    // Paginator labels contain HTML entities (&laquo; / &raquo;); render them as plain text.
+                                    const label = String(link.label).replace('&laquo;', '«').replace('&raquo;', '»');
+
+                                    return link.url && !link.active ? (
+                                        <Link
+                                            key={idx}
+                                            href={link.url}
+                                            preserveScroll
+                                            className="rounded-xl border border-[#EBE3D3] bg-white px-3.5 py-2 text-xs font-bold text-gray-700 transition hover:bg-crimson-50"
+                                        >
+                                            {label}
+                                        </Link>
+                                    ) : (
+                                        <span
+                                            key={idx}
+                                            aria-current={link.active ? 'page' : undefined}
+                                            aria-disabled={link.active ? undefined : 'true'}
+                                            className={`rounded-xl px-3.5 py-2 text-xs font-bold ${link.active ? 'bg-crimson-800 text-white' : 'text-gray-300'}`}
+                                        >
+                                            {label}
+                                        </span>
+                                    );
+                                })}
                             </div>
                         )}
 

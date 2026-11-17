@@ -1,4 +1,5 @@
 import React from 'react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Head, Link } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
 import ProductCard from '@/Components/ProductCard';
@@ -7,7 +8,7 @@ import { Cake, Sparkles, Truck, ShieldCheck, ArrowRight, Star, Gift } from 'luci
 export default function Home({ categories = [], featuredProducts = [] }) {
     const categoryImages = {
         'all-category': 'https://images.unsplash.com/photo-1488477181946-6428a0291777?q=80&w=900&auto=format&fit=crop',
-        'bento-cake': 'https://images.unsplash.com/photo-1535141192574-5d4897c13136?q=80&w=900&auto=format&fit=crop',
+        'bento-cake': 'https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=900&auto=format&fit=crop',
         'celebration-cake': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=900&auto=format&fit=crop',
         'cheesecake-slice': 'https://images.unsplash.com/photo-1565958011703-44f9829ba187?q=80&w=900&auto=format&fit=crop',
         'pastries-breads': 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=900&auto=format&fit=crop',
@@ -72,7 +73,7 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                             <div className="relative w-full max-w-md">
                                 <div className="absolute inset-0 bg-gradient-to-tr from-pink-500 to-amber-300 rounded-3xl transform rotate-3 opacity-20 blur-lg scale-95" />
                                 <div className="relative rounded-3xl overflow-hidden border-4 border-white/20 shadow-2xl bg-crimson-950">
-                                    <img
+                                    <ImageWithFallback
                                         src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=800&auto=format&fit=crop"
                                         alt="Chocolate Drip Cake Signature"
                                         className="w-full h-96 object-cover object-center transform hover:scale-105 transition-transform duration-700"
@@ -161,7 +162,7 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                                     className="group overflow-hidden rounded-2xl border border-[#EBE3D3] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-crimson-700 focus:ring-offset-2"
                                 >
                                     <div className="relative h-48 overflow-hidden bg-[#efe6d9] sm:h-52">
-                                        <img
+                                        <ImageWithFallback
                                             src={categoryImages[category.slug] || categoryImages['all-category']}
                                             alt={category.name}
                                             loading="lazy"

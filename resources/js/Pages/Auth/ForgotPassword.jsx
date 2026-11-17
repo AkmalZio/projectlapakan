@@ -1,8 +1,7 @@
-import InputError from '@/Components/InputError';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
+import { AuthHeader, AuthInput, AuthStatus, AuthSubmitButton } from '@/Components/AuthForm';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { Mail } from 'lucide-react';
 
 export default function ForgotPassword({ status }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -17,39 +16,42 @@ export default function ForgotPassword({ status }) {
 
     return (
         <GuestLayout>
-            <Head title="Forgot Password" />
+            <Head title="Lupa Password" />
 
-            <div className="mb-4 text-sm text-gray-600">
-                Forgot your password? No problem. Just let us know your email
-                address and we will email you a password reset link that will
-                allow you to choose a new one.
-            </div>
-
-            {status && (
-                <div className="mb-4 text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
-
-            <form onSubmit={submit}>
-                <TextInput
-                    id="email"
-                    type="email"
-                    name="email"
-                    value={data.email}
-                    className="mt-1 block w-full"
-                    isFocused={true}
-                    onChange={(e) => setData('email', e.target.value)}
+            <div className="space-y-6">
+                <AuthHeader
+                    title="Lupa Password"
+                    description="Masukkan email akunmu. Kami akan mengirim tautan untuk membuat password baru."
                 />
 
-                <InputError message={errors.email} className="mt-2" />
+                {status && <AuthStatus>{status}</AuthStatus>}
 
-                <div className="mt-4 flex items-center justify-end">
-                    <PrimaryButton className="ms-4" disabled={processing}>
-                        Email Password Reset Link
-                    </PrimaryButton>
+                <form onSubmit={submit} className="space-y-5">
+                    <AuthInput
+                        id="email"
+                        type="email"
+                        label="Email"
+                        icon={Mail}
+                        value={data.email}
+                        autoComplete="username"
+                        autoFocus
+                        placeholder="nama@email.com"
+                        onChange={(e) => setData('email', e.target.value)}
+                        error={errors.email}
+                    />
+
+                    <AuthSubmitButton processing={processing} processingLabel="Mengirim...">
+                        Kirim Tautan Reset Password
+                    </AuthSubmitButton>
+                </form>
+
+                <div className="border-t border-[#dccaa5] pt-5 text-center text-sm text-[#5f4a50]">
+                    Sudah ingat passwordnya?{' '}
+                    <Link href={route('login')} className="font-bold text-[#8b1f3f] hover:underline">
+                        Kembali masuk
+                    </Link>
                 </div>
-            </form>
+            </div>
         </GuestLayout>
     );
 }

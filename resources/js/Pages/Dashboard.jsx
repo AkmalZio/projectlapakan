@@ -1,4 +1,5 @@
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { ArrowRight, Cake, Heart, LogOut, MapPin, ShoppingBag, Sparkles, Star, Store } from 'lucide-react';
@@ -55,7 +56,7 @@ export default function Dashboard() {
                                     Halo, {auth.user.name}
                                 </h1>
                                 <p className="mt-3 text-sm text-pink-100/85 sm:text-base">
-                                    Cepat cek pesanan, lihat favoritmu, dan lanjutkan belanja kue favorit yang siap buat sial.
+                                    Cepat cek pesanan, lihat favoritmu, dan lanjutkan belanja kue favorit yang siap bikin harimu spesial.
                                 </p>
                             </div>
 
@@ -90,7 +91,7 @@ export default function Dashboard() {
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="rounded-[24px] border border-[#f0e0d8] bg-white p-5 shadow-[0_10px_30px_rgba(74,7,28,0.04)]">
                             <div className="flex items-center justify-between">
-                                <p className="text-sm text-gray-500">Pesanan Aktif</p>
+                                <p className="text-sm text-gray-500">Total Pesanan</p>
                                 <div className="rounded-xl bg-[#fdf1f5] p-2 text-[#7d0f2e]">
                                     <ShoppingBag className="h-4 w-4" />
                                 </div>
@@ -259,7 +260,7 @@ export default function Dashboard() {
                                     favoriteProducts.map((product) => (
                                         <div key={product.product_id ?? product.id} className="rounded-2xl border border-[#f0e0d8] bg-[#fffaf7] p-3">
                                             <div className="flex items-center gap-3">
-                                                <img
+                                                <ImageWithFallback
                                                     src={product.image || 'https://placehold.co/120x120/f4e4e9/7d0f2e?text=Cake'}
                                                     alt={product.name}
                                                     className="h-16 w-16 rounded-2xl object-cover"

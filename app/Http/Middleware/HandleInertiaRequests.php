@@ -38,6 +38,9 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'cartCount' => $cartCount,
+            'platform' => fn () => [
+                'contact' => config('lapakan.contact'),
+            ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

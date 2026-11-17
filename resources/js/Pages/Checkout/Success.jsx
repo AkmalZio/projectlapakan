@@ -1,81 +1,101 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
-import { CheckCircle, Cake, ArrowRight, Home, Calendar, MapPin } from 'lucide-react';
+import PaymentProofPanel from '@/Components/PaymentProofPanel';
+import { ClipboardCheck, ArrowRight, Home } from 'lucide-react';
 
-export default function Success({ order }) {
-    const formatIDR = (val) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-        }).format(val);
-    };
+const STATUS_LABELS = {
+    pending: 'Menunggu Konfirmasi Penjual',
+    confirmed: 'Dikonfirmasi',
+    baking: 'Sedang Dibuat',
+    delivering: 'Dalam Pengiriman',
+    completed: 'Selesai',
+    cancelled: 'Dibatalkan',
+};
+
+const formatDate = (value) => {
+    if (!value) return '-';
+    const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+
+    return new Date(year, month - 1, day).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+export default function Success({ order, paymentAccounts = {} }) {
+    const isAwaitingPayment = order.payment_status === 'unpaid';
 
     return (
         <MarketplaceLayout>
-            <Head title="Pesanan Berhasil - LAPAKan" />
+            <Head title="Pesanan Dibuat" />
 
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                <div className="bg-white rounded-3xl p-8 sm:p-12 border border-[#EBE3D3] shadow-xl text-center space-y-6">
-                    
-                    {/* Big Checkmark */}
-                    <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-8 ring-emerald-50">
-                        <CheckCircle className="w-12 h-12" />
+            <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+                <div className="space-y-6 rounded-3xl border border-[#EBE3D3] bg-white p-6 text-center shadow-xl sm:p-12">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-amber-700 ring-8 ring-amber-50">
+                        <ClipboardCheck className="h-11 w-11" />
                     </div>
 
                     <div className="space-y-2">
-                        <span className="text-xs font-bold uppercase tracking-widest text-crimson-700">Status Pembayaran Berhasil</span>
-                        <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900">
-                            PESANAN BERHASIL!
-                        </h1>
-                        <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-                            Terima kasih telah berbelanja di LAPAKan. Pesanan kuemu sudah diterima dan akan segera dibuat oleh pastry chef kami.
+                        <span className="text-xs font-bold uppercase tracking-widest text-crimson-700">
+                            {isAwaitingPayment ? 'Langkah terakhir: pembayaran' : 'Pesanan tercatat'}
+                        </span>
+                        <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Pesanan Berhasil Dibuat!</h1>
+                        <p className="mx-auto max-w-md text-xs leading-relaxed text-gray-500 sm:text-sm">
+                            {isAwaitingPayment
+                                ? 'Transfer sesuai nominal di bawah, lalu unggah bukti transfer. Penjual mulai membuat kuemu setelah pembayaran diverifikasi.'
+                                : 'Terima kasih! Pantau status pesananmu dari halaman Pesanan Saya.'}
                         </p>
                     </div>
 
-                    {/* Order summary card */}
-                    <div className="bg-[#FAF6EE] rounded-2xl p-6 border border-[#EBE3D3] text-left space-y-3 max-w-md mx-auto text-xs">
-                        <div className="flex justify-between pb-2 border-b border-gray-200">
+                    <div className="mx-auto max-w-md space-y-3 rounded-2xl border border-[#EBE3D3] bg-[#FAF6EE] p-6 text-left text-xs">
+                        <div className="flex justify-between gap-3 border-b border-gray-200 pb-2">
                             <span className="text-gray-500">Nomor Pesanan</span>
-                            <span className="font-mono font-bold text-gray-900">{order.order_number}</span>
+                            <span className="break-all text-right font-mono font-bold text-gray-900">{order.order_number}</span>
                         </div>
-                        <div className="flex justify-between pb-2 border-b border-gray-200">
+                        {order.store?.name && (
+                            <div className="flex justify-between gap-3 border-b border-gray-200 pb-2">
+                                <span className="text-gray-500">Toko</span>
+                                <span className="text-right font-bold text-gray-900">{order.store.name}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between gap-3 border-b border-gray-200 pb-2">
+                            <span className="text-gray-500">Status Pesanan</span>
+                            <span className="text-right font-bold text-amber-700">{STATUS_LABELS[order.status] ?? order.status}</span>
+                        </div>
+                        <div className="flex justify-between gap-3 border-b border-gray-200 pb-2">
                             <span className="text-gray-500">Penerima</span>
-                            <span className="font-bold text-gray-900">{order.recipient_name}</span>
+                            <span className="text-right font-bold text-gray-900">{order.recipient_name}</span>
                         </div>
-                        <div className="flex justify-between pb-2 border-b border-gray-200">
+                        <div className="flex justify-between gap-3 border-b border-gray-200 pb-2">
                             <span className="text-gray-500">Kurir</span>
-                            <span className="font-bold text-gray-900">{order.delivery_courier || 'Belum tercatat'}</span>
+                            <span className="text-right font-bold text-gray-900">{order.delivery_courier || 'Belum tercatat'}</span>
                         </div>
-                        <div className="flex justify-between pb-2 border-b border-gray-200">
+                        <div className="flex justify-between gap-3">
                             <span className="text-gray-500">Tanggal Pengiriman</span>
-                            <span className="font-bold text-crimson-800">{order.delivery_date} ({order.delivery_time_slot})</span>
-                        </div>
-                        <div className="flex justify-between items-baseline pt-1">
-                            <span className="font-bold text-gray-700">Total Pembayaran</span>
-                            <span className="text-base font-extrabold text-crimson-900">{formatIDR(order.total_amount)}</span>
+                            <span className="text-right font-bold text-crimson-800">
+                                {formatDate(order.delivery_date)} ({order.delivery_time_slot})
+                            </span>
                         </div>
                     </div>
 
-                    {/* Action buttons */}
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 max-w-md mx-auto">
+                    <div className="mx-auto max-w-md text-left">
+                        <PaymentProofPanel order={order} paymentAccounts={paymentAccounts} />
+                    </div>
+
+                    <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-3 pt-2 sm:flex-row">
                         <Link
                             href={route('orders.show', order.order_number)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-crimson-800 hover:bg-crimson-900 text-white font-bold text-xs shadow-md shadow-crimson-900/20 transition hover:scale-105 active:scale-95"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-crimson-800 px-8 py-3.5 text-xs font-bold text-white shadow-md shadow-crimson-900/20 transition hover:bg-crimson-900 sm:w-auto"
                         >
                             <span>Lihat Rincian Pesanan</span>
-                            <ArrowRight className="w-4 h-4" />
+                            <ArrowRight className="h-4 w-4" />
                         </Link>
                         <Link
                             href={route('home')}
-                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-white border border-[#EBE3D3] text-gray-700 hover:bg-gray-50 font-bold text-xs transition"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#EBE3D3] bg-white px-6 py-3.5 text-xs font-bold text-gray-700 transition hover:bg-gray-50 sm:w-auto"
                         >
-                            <Home className="w-4 h-4" />
+                            <Home className="h-4 w-4" />
                             <span>Kembali ke Beranda</span>
                         </Link>
                     </div>
-
                 </div>
             </div>
         </MarketplaceLayout>

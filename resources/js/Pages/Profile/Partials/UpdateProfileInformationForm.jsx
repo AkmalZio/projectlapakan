@@ -16,6 +16,7 @@ export default function UpdateProfileInformation({
         useForm({
             name: user.name,
             email: user.email,
+            phone: user.phone ?? '',
             address: user.address ?? '',
         });
 
@@ -33,7 +34,7 @@ export default function UpdateProfileInformation({
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-600">
-                    Perbarui nama, email, dan alamat pengiriman akun kamu.
+                    Perbarui nama, email, nomor WhatsApp, dan alamat pengiriman akun kamu.
                 </p>
             </header>
 
@@ -68,6 +69,24 @@ export default function UpdateProfileInformation({
                     />
 
                     <InputError className="mt-2" message={errors.email} />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="phone" value="Nomor WhatsApp" className="mb-1.5 text-sm font-semibold text-gray-700" />
+
+                    <TextInput
+                        id="phone"
+                        type="tel"
+                        className="mt-1 block w-full rounded-xl border-[#e7d7c6] bg-[#fffaf7] px-3 py-2.5 text-sm text-gray-800 shadow-sm transition focus:border-[#7d0f2e] focus:ring-[#f0bfd0]"
+                        value={data.phone}
+                        onChange={(e) => setData('phone', e.target.value)}
+                        autoComplete="tel"
+                        maxLength={20}
+                        placeholder="08xxxxxxxxxx"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Dipakai untuk mengisi otomatis data penerima saat checkout.</p>
+
+                    <InputError className="mt-2" message={errors.phone} />
                 </div>
 
                 <div>

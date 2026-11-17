@@ -1,6 +1,9 @@
+import ImageWithFallback from '@/Components/ImageWithFallback';
+import PaymentStatusBadge from '@/Components/PaymentStatusBadge';
 import SellerCenterLayout from '@/Layouts/SellerCenterLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowRight, CheckCircle2, ClipboardList, ImageOff, Loader, Package, Plus } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ClipboardList, FileImage, Loader, Plus, Wallet } from 'lucide-react';
+import { useState } from 'react';
 
 const orderStatusLabels = {
     pending: 'Menunggu',
@@ -20,6 +23,8 @@ const orderStatusStyles = {
     cancelled: 'bg-gray-100 text-gray-600',
 };
 
+const finalOrderStatuses = ['completed', 'cancelled'];
+
 function formatCurrency(amount) {
     return new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -28,11 +33,109 @@ function formatCurrency(amount) {
     }).format(Number(amount) || 0);
 }
 
-function OrderRow({ order, orderStatuses }) {
+function formatDeliveryDate(date) {
+    const parsedDate = new Date(`${String(date).slice(0, 10)}T00:00:00`);
+
+    return Number.isNaN(parsedDate.getTime()) ? date : parsedDate.toLocaleDateString('id-ID', { dateStyle: 'medium' });
+}
+
+/**
+ * Accept or reject the buyer's transfer proof. A rejection needs a reason the buyer will see.
+ */
+function PaymentVerification({ order }) {
+    const form = useForm({ decision: 'approve', reason: '' });
+    const [isRejecting, setIsRejecting] = useState(false);
+
+    const submit = (decision) => {
+        form.transform((data) => ({ ...data, decision }));
+        form.patch(route('admin.orders.verify-payment', { order: order.id }), { preserveScroll: true });
+    };
+
+    return (
+        <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50 p-2.5">
+            <p className="font-semibold text-sky-900">Bukti transfer menunggu verifikasi</p>
+            <a
+                href={route('orders.payment-proof.show', order.order_number)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-crimson-800 hover:underline"
+            >
+                <FileImage aria-hidden="true" className="h-3.5 w-3.5" />
+                Lihat bukti transfer ({formatCurrency(order.total_amount)})
+            </a>
+            {isRejecting ? (
+                <div className="space-y-2">
+                    <label htmlFor={`reject-reason-${order.id}`} className="sr-only">
+                        Alasan penolakan
+                    </label>
+                    <textarea
+                        id={`reject-reason-${order.id}`}
+                        rows={2}
+                        maxLength={255}
+                        value={form.data.reason}
+                        onChange={(event) => form.setData('reason', event.target.value)}
+                        placeholder="Contoh: nominal transfer kurang Rp5.000"
+                        className="w-full rounded-lg border-gray-300 text-xs focus:border-crimson-700 focus:ring-crimson-700"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            disabled={form.processing}
+                            onClick={() => submit('reject')}
+                            className="rounded-lg bg-red-700 px-3 py-1.5 font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                        >
+                            Tolak pembayaran
+                        </button>
+                        <button type="button" onClick={() => setIsRejecting(false)} className="rounded-lg px-3 py-1.5 font-semibold text-gray-600 hover:bg-white">
+                            Batal
+                        </button>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        disabled={form.processing}
+                        onClick={() => submit('approve')}
+                        className="rounded-lg bg-emerald-700 px-3 py-1.5 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                    >
+                        Terima pembayaran
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setIsRejecting(true)}
+                        className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50"
+                    >
+                        Tolak
+                    </button>
+                </div>
+            )}
+            {(form.errors.decision || form.errors.reason) && (
+                <p className="text-red-600">{form.errors.decision || form.errors.reason}</p>
+            )}
+        </div>
+    );
+}
+
+function OrderRow({ order, orderStatuses, statusesAllowedBeforePayment }) {
     const form = useForm({ status: order.status });
+    const hasFinalStatus = finalOrderStatuses.includes(order.status);
+    const isPaid = order.payment_status === 'paid';
+    const selectableStatuses = isPaid ? orderStatuses : orderStatuses.filter((status) => statusesAllowedBeforePayment.includes(status));
 
     const updateStatus = (event) => {
         event.preventDefault();
+
+        if (
+            form.data.status === 'cancelled' &&
+            !window.confirm(
+                `Batalkan pesanan ${order.order_number}? Stok produk akan dikembalikan dan pesanan tidak dapat diubah lagi.` +
+                    (order.payment_status === 'unpaid' ? '' : ' Jika pembeli sudah transfer, kembalikan dananya.'),
+            )
+        ) {
+            return;
+        }
+
         form.patch(route('admin.orders.update-status', { order: order.id }), {
             preserveScroll: true,
         });
@@ -48,30 +151,31 @@ function OrderRow({ order, orderStatuses }) {
                         timeStyle: 'short',
                     })}
                 </p>
-                <details className="mt-2">
-                    <summary className="cursor-pointer text-xs font-semibold text-crimson-800">
-                        Lihat rincian
-                    </summary>
-                    <div className="mt-3 min-w-64 space-y-3 rounded-xl bg-cream-50 p-3 text-xs text-gray-600">
+                <details className="mt-2" open={order.payment_status === 'pending_verification' && !hasFinalStatus ? true : undefined}>
+                    <summary className="cursor-pointer text-xs font-semibold text-crimson-800">Lihat rincian</summary>
+                    <div className="mt-3 w-64 max-w-full space-y-3 rounded-xl bg-cream-50 p-3 text-xs text-gray-600">
+                        {order.payment_status === 'pending_verification' && !hasFinalStatus && <PaymentVerification order={order} />}
                         <div>
                             <p className="font-semibold text-gray-800">Penerima</p>
-                            <p>{order.recipient_name} · {order.recipient_phone}</p>
-                            <p>{order.delivery_address || 'Ambil di toko'}</p>
+                            <p className="break-words">
+                                {order.recipient_name} · {order.recipient_phone}
+                            </p>
+                            <p className="break-words">{order.delivery_address || 'Ambil di toko'}</p>
                             {order.delivery_courier && <p>Kurir: {order.delivery_courier}</p>}
-                            {order.delivery_notes && <p>Catatan: {order.delivery_notes}</p>}
+                            {order.delivery_notes && <p className="break-words">Catatan: {order.delivery_notes}</p>}
                         </div>
                         <div>
                             <p className="font-semibold text-gray-800">Item pesanan</p>
                             <ul className="mt-1 space-y-1">
                                 {order.items?.map((item) => (
                                     <li key={item.id} className="flex flex-wrap justify-between gap-2">
-                                        <span>
+                                        <span className="min-w-0 break-words">
                                             {item.product_name}
                                             {item.variant_name ? ` (${item.variant_name})` : ''} × {item.quantity}
                                         </span>
                                         <span className="shrink-0">{formatCurrency(item.subtotal)}</span>
                                         {(item.cake_text || item.custom_request) && (
-                                            <span className="basis-full text-gray-500">
+                                            <span className="basis-full break-words text-gray-500">
                                                 {item.cake_text ? `Tulisan: ${item.cake_text}` : ''}
                                                 {item.custom_request ? ` Catatan: ${item.custom_request}` : ''}
                                             </span>
@@ -80,65 +184,87 @@ function OrderRow({ order, orderStatuses }) {
                                 ))}
                             </ul>
                         </div>
-                        {order.greeting_card_message && (
-                            <p>Pesan kartu: {order.greeting_card_message}</p>
-                        )}
+                        {order.greeting_card_message && <p className="break-words">Pesan kartu: {order.greeting_card_message}</p>}
                         <p>
                             Pengiriman: {order.delivery_type === 'pickup' ? 'Ambil di toko' : 'Diantar'}
                             {Number(order.shipping_cost) > 0 ? ` · Ongkir ${formatCurrency(order.shipping_cost)}` : ''}
                         </p>
                         <p>
-                            Pembayaran: {order.payment_status}
-                            {order.payment_method ? ` · ${order.payment_method}` : ''}
+                            Pembayaran: {order.payment_method || '-'}
+                            {order.has_payment_proof && order.payment_status !== 'pending_verification' && (
+                                <>
+                                    {' · '}
+                                    <a
+                                        href={route('orders.payment-proof.show', order.order_number)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="font-semibold text-crimson-800 hover:underline"
+                                    >
+                                        bukti transfer
+                                    </a>
+                                </>
+                            )}
                         </p>
+                        {order.payment_rejection_reason && order.payment_status === 'unpaid' && (
+                            <p className="break-words text-red-700">Ditolak: {order.payment_rejection_reason}</p>
+                        )}
+                        {order.candles_count > 0 && <p>Lilin: {order.candles_count} buah</p>}
                         {order.delivery_date && (
                             <p>
-                                Jadwal: {new Date(`${order.delivery_date}T00:00:00`).toLocaleDateString('id-ID')}
+                                Jadwal: {formatDeliveryDate(order.delivery_date)}
                                 {order.delivery_time_slot ? ` · ${order.delivery_time_slot}` : ''}
                             </p>
                         )}
                     </div>
                 </details>
             </td>
-            <td className="px-4 py-4 text-sm text-gray-700">
-                {order.user?.name ?? order.recipient_name}
-            </td>
-            <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-gray-900">
-                {formatCurrency(order.total_amount)}
-            </td>
-            <td className="px-4 py-4">
-                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${orderStatusStyles[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
+            <td className="px-4 py-4 text-sm text-gray-700">{order.user?.name ?? order.recipient_name}</td>
+            <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-gray-900">{formatCurrency(order.total_amount)}</td>
+            <td className="space-y-1.5 px-4 py-4">
+                <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        orderStatusStyles[order.status] ?? 'bg-gray-100 text-gray-600'
+                    }`}
+                >
                     {orderStatusLabels[order.status] ?? order.status}
                 </span>
+                <div>
+                    <PaymentStatusBadge status={order.payment_status} />
+                </div>
             </td>
             <td className="px-4 py-4">
-                <form onSubmit={updateStatus} className="flex min-w-56 items-center gap-2">
-                    <label className="sr-only" htmlFor={`order-status-${order.id}`}>
-                        Status pesanan {order.order_number}
-                    </label>
-                    <select
-                        id={`order-status-${order.id}`}
-                        value={form.data.status}
-                        onChange={(event) => form.setData('status', event.target.value)}
-                        className="min-w-0 flex-1 rounded-lg border-gray-300 text-xs text-gray-800 focus:border-crimson-700 focus:ring-crimson-700"
-                    >
-                        {orderStatuses.map((status) => (
-                            <option key={status} value={status}>
-                                {orderStatusLabels[status] ?? status}
-                            </option>
-                        ))}
-                    </select>
-                    <button
-                        type="submit"
-                        disabled={form.processing || form.data.status === order.status}
-                        className="rounded-lg bg-crimson-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-crimson-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {form.processing ? 'Menyimpan' : 'Simpan'}
-                    </button>
-                </form>
-                {form.errors.status && (
-                    <p className="mt-1 text-xs text-red-600">{form.errors.status}</p>
+                {hasFinalStatus ? (
+                    <p className="text-xs text-gray-500">Status final, tidak dapat diubah.</p>
+                ) : (
+                    <form onSubmit={updateStatus} className="flex min-w-56 items-center gap-2">
+                        <label className="sr-only" htmlFor={`order-status-${order.id}`}>
+                            Status pesanan {order.order_number}
+                        </label>
+                        <select
+                            id={`order-status-${order.id}`}
+                            value={form.data.status}
+                            onChange={(event) => form.setData('status', event.target.value)}
+                            className="min-w-0 flex-1 rounded-lg border-gray-300 text-xs text-gray-800 focus:border-crimson-700 focus:ring-crimson-700"
+                        >
+                            {selectableStatuses.map((status) => (
+                                <option key={status} value={status}>
+                                    {orderStatusLabels[status] ?? status}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="submit"
+                            disabled={form.processing || form.data.status === order.status}
+                            className="rounded-lg bg-crimson-800 px-3 py-2 text-xs font-semibold text-white transition hover:bg-crimson-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {form.processing ? 'Menyimpan' : 'Simpan'}
+                        </button>
+                    </form>
                 )}
+                {!hasFinalStatus && !isPaid && (
+                    <p className="mt-1 max-w-56 text-[11px] text-gray-500">Pesanan bisa diproses setelah pembayaran diverifikasi.</p>
+                )}
+                {form.errors.status && <p className="mt-1 text-xs text-red-600">{form.errors.status}</p>}
             </td>
         </tr>
     );
@@ -146,13 +272,13 @@ function OrderRow({ order, orderStatuses }) {
 
 function StatCard({ label, value, icon: Icon, tone }) {
     return (
-        <div className="flex items-center gap-4 rounded-2xl border border-[#eadfcd] bg-white p-4">
+        <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-[#eadfcd] bg-white p-4">
             <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tone}`}>
                 <Icon aria-hidden="true" className="h-5 w-5" />
             </span>
             <div className="min-w-0">
                 <p className="text-2xl font-bold leading-tight text-[#3d1725]">{value}</p>
-                <p className="truncate text-xs font-medium text-[#746b64]">{label}</p>
+                <p className="text-xs font-medium leading-snug text-[#746b64]">{label}</p>
             </div>
         </div>
     );
@@ -164,6 +290,7 @@ export default function Dashboard({
     orders = { data: [], current_page: 1, last_page: 1 },
     orderStatusFilter = 'all',
     orderStatuses = [],
+    statusesAllowedBeforePayment = ['pending', 'cancelled'],
     stats = {},
 }) {
     const statusFilters = [
@@ -185,21 +312,21 @@ export default function Dashboard({
                 </Link>
             }
         >
-            <Head title="Dashboard Admin" />
+            <Head title="Pesanan" />
 
             <section aria-label="Ringkasan pesanan" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard label="Pesanan baru" value={stats.new_orders ?? 0} icon={ClipboardList} tone="bg-amber-50 text-amber-700" />
+                <StatCard
+                    label="Bukti transfer perlu dicek"
+                    value={stats.awaiting_payment_verification ?? 0}
+                    icon={Wallet}
+                    tone="bg-sky-50 text-sky-700"
+                />
                 <StatCard label="Sedang diproses" value={stats.processing_orders ?? 0} icon={Loader} tone="bg-blue-50 text-blue-700" />
                 <StatCard label="Selesai" value={stats.completed_orders ?? 0} icon={CheckCircle2} tone="bg-green-50 text-green-700" />
-                <StatCard
-                    label={`Produk aktif dari ${stats.total_products ?? 0}`}
-                    value={stats.active_products ?? 0}
-                    icon={Package}
-                    tone="bg-crimson-50 text-crimson-800"
-                />
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <section className="min-w-0 overflow-hidden rounded-2xl border border-[#eadfcd] bg-white">
                     <div className="flex flex-col gap-4 border-b border-[#f0e6d6] p-5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -209,7 +336,7 @@ export default function Dashboard({
                             </span>
                         </div>
 
-                        <nav aria-label="Filter status pesanan" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                        <nav aria-label="Filter status pesanan" className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1">
                             {statusFilters.map((filter) => (
                                 <Link
                                     key={filter.value}
@@ -230,7 +357,7 @@ export default function Dashboard({
 
                     {orders.data?.length > 0 ? (
                         <>
-                            <div className="overflow-x-auto">
+                            <div className="relative max-w-full overflow-x-auto">
                                 <table className="w-full min-w-[52rem] text-left">
                                     <thead className="bg-[#faf6f0] text-xs uppercase tracking-wide text-[#8b8178]">
                                         <tr>
@@ -243,13 +370,18 @@ export default function Dashboard({
                                     </thead>
                                     <tbody className="divide-y divide-[#f0e6d6]">
                                         {orders.data.map((order) => (
-                                            <OrderRow key={order.id} order={order} orderStatuses={orderStatuses} />
+                                            <OrderRow
+                                                key={`${order.id}-${order.status}-${order.payment_status}`}
+                                                order={order}
+                                                orderStatuses={orderStatuses}
+                                                statusesAllowedBeforePayment={statusesAllowedBeforePayment}
+                                            />
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
                             {orders.last_page > 1 && (
-                                <div className="flex items-center justify-between border-t border-[#f0e6d6] px-5 py-4 text-sm">
+                                <div className="flex items-center justify-between gap-2 border-t border-[#f0e6d6] px-5 py-4 text-sm">
                                     {orders.prev_page_url ? (
                                         <Link href={orders.prev_page_url} preserveScroll className="font-semibold text-crimson-800 hover:underline">
                                             &larr; Sebelumnya
@@ -281,9 +413,14 @@ export default function Dashboard({
                     )}
                 </section>
 
-                <section className="self-start rounded-2xl border border-[#eadfcd] bg-white">
+                <section className="min-w-0 self-start rounded-2xl border border-[#eadfcd] bg-white">
                     <div className="flex items-center justify-between border-b border-[#f0e6d6] px-5 py-4">
-                        <h2 className="text-base font-bold text-[#3d1725]">Produk terbaru</h2>
+                        <h2 className="text-base font-bold text-[#3d1725]">
+                            Produk terbaru
+                            <span className="ml-2 text-xs font-medium text-[#8b8178]">
+                                {stats.active_products ?? 0} aktif dari {stats.total_products ?? 0}
+                            </span>
+                        </h2>
                         <Link
                             href={route('admin.products.index')}
                             className="inline-flex items-center gap-1 text-xs font-semibold text-crimson-800 hover:underline"
@@ -296,13 +433,7 @@ export default function Dashboard({
                         <ul className="divide-y divide-[#f0e6d6]">
                             {products.map((product) => (
                                 <li key={product.id} className="flex items-center gap-3 px-5 py-3">
-                                    {product.image ? (
-                                        <img src={product.image} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
-                                    ) : (
-                                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#f3ecdc] text-[#b3a48c]">
-                                            <ImageOff aria-hidden="true" className="h-4 w-4" />
-                                        </span>
-                                    )}
+                                    <ImageWithFallback src={product.image} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-semibold text-[#3d1725]">{product.name}</p>
                                         <p className="text-xs text-[#8b8178]">

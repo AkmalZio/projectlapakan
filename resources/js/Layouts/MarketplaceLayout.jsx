@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
-import { ShoppingBag, Search, Cake, Phone, MapPin, Clock, Menu, X, ChevronRight, User, CheckCircle2 } from 'lucide-react';
+import { ShoppingBag, Search, Cake, Phone, MapPin, Clock, Menu, X, ChevronRight, User, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function MarketplaceLayout({ children, title }) {
-    const { auth, cartCount, flash } = usePage().props;
+    const { auth, cartCount, flash, platform } = usePage().props;
+    const contact = platform?.contact ?? {};
     const [searchQuery, setSearchQuery] = useState('');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -17,7 +18,7 @@ export default function MarketplaceLayout({ children, title }) {
     };
 
     return (
-        <div className="min-h-screen flex flex-col bg-[var(--lapakan-bg)] text-gray-800 selection:bg-crimson-700 selection:text-white">
+        <div className="relative min-h-screen overflow-x-clip flex flex-col bg-[var(--lapakan-bg)] text-gray-800 selection:bg-crimson-700 selection:text-white">
             {/* Main Header / Navbar */}
             <header className="sticky top-0 z-40 bg-[#7b0d2d] text-white border-b border-[#5d0a20] shadow-[0_8px_18px_rgba(28,10,18,0.18)] rounded-b-[18px]">
                 <div className="max-w-[1480px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -118,9 +119,12 @@ export default function MarketplaceLayout({ children, title }) {
                             )}
 
                             {/* Mobile Hamburger Toggle */}
-                            <button 
+                            <button
+                                type="button"
+                                aria-label={mobileMenuOpen ? 'Tutup menu' : 'Buka menu'}
+                                aria-expanded={mobileMenuOpen}
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+                                className="lg:hidden p-2 rounded-lg text-white hover:bg-white/10"
                             >
                                 {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                             </button>
@@ -131,7 +135,7 @@ export default function MarketplaceLayout({ children, title }) {
 
                 {/* Mobile Dropdown Menu */}
                 {mobileMenuOpen && (
-                    <div className="lg:hidden border-t border-[#E5DCCB] bg-white px-4 pt-3 pb-6 space-y-3 shadow-lg">
+                    <div className="lg:hidden border-t border-white/10 bg-[#7b0d2d] px-4 pt-3 pb-6 space-y-3 shadow-lg rounded-b-[18px]">
                         <form onSubmit={handleSearch} className="pt-2">
                             <div className="relative w-full">
                                 <input
@@ -139,7 +143,7 @@ export default function MarketplaceLayout({ children, title }) {
                                     placeholder="Cari kue..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm"
+                                    className="w-full bg-white text-gray-700 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm"
                                 />
                                 <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
                             </div>
@@ -167,14 +171,20 @@ export default function MarketplaceLayout({ children, title }) {
 
             {/* Flash Message Toast Notification */}
             {flash?.success && (
-                <div className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-bounce">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+                <div role="status" className="fixed bottom-6 right-6 left-6 sm:left-auto sm:max-w-md z-50 bg-emerald-700 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-bounce">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-200" />
                     <span className="text-sm font-semibold">{flash.success}</span>
+                </div>
+            )}
+            {flash?.error && (
+                <div role="alert" className={`fixed ${flash?.success ? 'bottom-24' : 'bottom-6'} right-6 left-6 sm:left-auto sm:max-w-md z-50 bg-red-700 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3`}>
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-200" />
+                    <span className="text-sm font-semibold">{flash.error}</span>
                 </div>
             )}
 
             {/* Main Content */}
-            <main className="flex-1 lapakan-page-shell">
+            <main className="lapakan-page-shell w-full min-w-0 flex-1">
                 <div className="lapakan-panel rounded-[28px] overflow-hidden">
                     {children}
                 </div>
@@ -199,14 +209,18 @@ export default function MarketplaceLayout({ children, title }) {
                                 Marketplace dessert & custom cakes terpercaya. Menghubungkan pecinta sajian manis dengan pastry chef & baker artisan terbaik.
                             </p>
                             <div className="flex items-center gap-3 pt-2">
-                                <a href="https://instagram.com" target="_blank" rel="noreferrer" className="w-9 h-9 rounded-full bg-crimson-800 flex items-center justify-center hover:bg-pink-600 transition text-white">
+                                {contact.instagram_url && (
+                                <a href={contact.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram LAPAKan" className="w-9 h-9 rounded-full bg-crimson-800 flex items-center justify-center hover:bg-pink-600 transition text-white">
                                     <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                                         <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                                     </svg>
                                 </a>
-                                <a href="https://wa.me/6281298765432" target="_blank" rel="noreferrer" className="w-9 h-9 rounded-full bg-crimson-800 flex items-center justify-center hover:bg-pink-600 transition text-white">
-                                    <Phone className="w-4 h-4" />
-                                </a>
+                                )}
+                                {contact.whatsapp && (
+                                    <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" aria-label="WhatsApp LAPAKan" className="w-9 h-9 rounded-full bg-crimson-800 flex items-center justify-center hover:bg-pink-600 transition text-white">
+                                        <Phone className="w-4 h-4" />
+                                    </a>
+                                )}
                             </div>
                         </div>
 
@@ -236,29 +250,31 @@ export default function MarketplaceLayout({ children, title }) {
                         <div>
                             <h4 className="text-white font-bold text-base mb-4 tracking-wide uppercase text-xs">Layanan Pelanggan</h4>
                             <div className="space-y-3 text-sm text-pink-200/80">
-                                <div className="flex items-start gap-2.5">
-                                    <MapPin className="w-4 h-4 text-pink-300 mt-0.5 flex-shrink-0" />
-                                    <span>Gg. Olahraga No.20, Ciriung, Kec. Cibinong, Kabupaten Bogor, Jawa Barat 16918</span>
-                                </div>
-                                <div className="flex items-center gap-2.5">
-                                    <Phone className="w-4 h-4 text-pink-300 flex-shrink-0" />
-                                    <span>+62 812-456-7890 (WhatsApp)</span>
-                                </div>
-                                <div className="flex items-center gap-2.5">
-                                    <Clock className="w-4 h-4 text-pink-300 flex-shrink-0" />
-                                    <span>Buka Setiap Hari: 08:00 - 20:00 WIB</span>
-                                </div>
+                                {contact.address && (
+                                    <div className="flex items-start gap-2.5">
+                                        <MapPin className="w-4 h-4 text-pink-300 mt-0.5 flex-shrink-0" />
+                                        <span>{contact.address}</span>
+                                    </div>
+                                )}
+                                {contact.whatsapp && (
+                                    <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 hover:text-white">
+                                        <Phone className="w-4 h-4 text-pink-300 flex-shrink-0" />
+                                        <span>{contact.whatsapp_display || contact.whatsapp} (WhatsApp)</span>
+                                    </a>
+                                )}
+                                {contact.opening_hours && (
+                                    <div className="flex items-center gap-2.5">
+                                        <Clock className="w-4 h-4 text-pink-300 flex-shrink-0" />
+                                        <span>{contact.opening_hours}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                     </div>
 
                     <div className="border-t border-crimson-800/80 pt-8 text-center text-xs text-pink-300/70 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <p>© {new Date().getFullYear()} LAPAKan. All rights reserved. Made with love for sweet moments.</p>
-                        <div className="flex gap-6">
-                            <span className="hover:text-white cursor-pointer">Kebijakan Privasi</span>
-                            <span className="hover:text-white cursor-pointer">Syarat & Ketentuan</span>
-                        </div>
+                        <p>© {new Date().getFullYear()} LAPAKan. Hak cipta dilindungi. Dibuat dengan cinta untuk momen manismu.</p>
                     </div>
                 </div>
             </footer>

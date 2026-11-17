@@ -219,9 +219,9 @@ class DessertMarketplaceSeeder extends Seeder
                 'category_slug' => 'bento-cake',
                 'description' => 'Bento cake mini diameter 10cm gaya aesthetic Korea. Bisa request tulisan ucapan custom di atas kue. Dilengkapi lilin aesthetic dan sendok kayu ramah lingkungan. Tersedia berbagai pilihan base rasa.',
                 'base_price' => 75000,
-                'image' => 'https://images.unsplash.com/photo-1535141192574-5d4897c13136?q=80&w=800&auto=format&fit=crop',
+                'image' => 'https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=800&auto=format&fit=crop',
                 'gallery' => [
-                    'https://images.unsplash.com/photo-1535141192574-5d4897c13136?q=80&w=800&auto=format&fit=crop',
+                    'https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=800&auto=format&fit=crop',
                     'https://images.unsplash.com/photo-1488477181946-6428a0291777?q=80&w=800&auto=format&fit=crop',
                 ],
                 'shelf_life_days' => 4,
@@ -249,7 +249,7 @@ class DessertMarketplaceSeeder extends Seeder
                 'image' => 'https://images.unsplash.com/photo-1488477181946-6428a0291777?q=80&w=800&auto=format&fit=crop',
                 'gallery' => [
                     'https://images.unsplash.com/photo-1488477181946-6428a0291777?q=80&w=800&auto=format&fit=crop',
-                    'https://images.unsplash.com/photo-1535141192574-5d4897c13136?q=80&w=800&auto=format&fit=crop',
+                    'https://images.unsplash.com/photo-1621303837174-89787a7d4729?q=80&w=800&auto=format&fit=crop',
                 ],
                 'shelf_life_days' => 3,
                 'is_preorder' => true,
@@ -561,16 +561,17 @@ class DessertMarketplaceSeeder extends Seeder
 
             $product = Product::updateOrCreate(['slug' => $data['slug']], $data);
 
-            ProductVariant::where('product_id', $product->id)->delete();
+            // Update variants in place (instead of delete + recreate) so re-seeding keeps the
+            // variant ids that existing order items point to.
             foreach ($variants as $v) {
-                ProductVariant::create([
-                    'product_id' => $product->id,
-                    'type' => $v['type'],
-                    'name' => $v['name'],
-                    'additional_price' => $v['additional_price'],
-                    'stock' => 20,
-                ]);
+                ProductVariant::updateOrCreate(
+                    ['product_id' => $product->id, 'name' => $v['name']],
+                    ['type' => $v['type'], 'additional_price' => $v['additional_price'], 'stock' => 20],
+                );
             }
+            ProductVariant::where('product_id', $product->id)
+                ->whereNotIn('name', array_column($variants, 'name'))
+                ->delete();
         }
 
         $this->command->info('✅ Seeded: 1 Store, 6 Categories, '.count($productsData).' Products + Variants');

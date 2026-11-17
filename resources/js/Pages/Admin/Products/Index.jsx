@@ -1,6 +1,8 @@
 import SellerCenterLayout from '@/Layouts/SellerCenterLayout';
-import { Head, Link } from '@inertiajs/react';
-import { ImageOff, Package, Plus } from 'lucide-react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
+import { Head, Link, router } from '@inertiajs/react';
+import { Eye, EyeOff, ImageOff, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat('id-ID', {
@@ -12,7 +14,7 @@ function formatCurrency(amount) {
 
 function ProductThumbnail({ product }) {
     return product.image ? (
-        <img src={product.image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-[#eadfcd]" />
+        <ImageWithFallback src={product.image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-[#eadfcd]" />
     ) : (
         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#f3ecdc] text-[#b3a48c]">
             <ImageOff aria-hidden="true" className="h-5 w-5" />
@@ -29,6 +31,69 @@ function StatusBadge({ isActive }) {
         >
             {isActive ? 'Aktif' : 'Nonaktif'}
         </span>
+    );
+}
+
+const actionButtonClass =
+    'inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50';
+
+/**
+ * Edit, show/hide and delete controls for one product. Products that were already ordered
+ * cannot be deleted (it would erase them from order history), so only hiding is offered.
+ */
+function ProductActions({ product }) {
+    const [isBusy, setIsBusy] = useState(false);
+    const hasOrders = Number(product.order_items_count) > 0;
+    const requestOptions = {
+        preserveScroll: true,
+        onStart: () => setIsBusy(true),
+        onFinish: () => setIsBusy(false),
+    };
+
+    const toggleActive = () => {
+        router.patch(route('admin.products.toggle-active', product.id), {}, requestOptions);
+    };
+
+    const destroy = () => {
+        if (window.confirm(`Hapus produk "${product.name}"? Tindakan ini tidak dapat dibatalkan.`)) {
+            router.delete(route('admin.products.destroy', product.id), requestOptions);
+        }
+    };
+
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <Link
+                href={route('admin.products.edit', product.id)}
+                className={`${actionButtonClass} border-[#e2d6c3] bg-white text-[#3d1725] hover:bg-[#fffaf4]`}
+            >
+                <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+                Edit
+            </Link>
+            <button
+                type="button"
+                onClick={toggleActive}
+                disabled={isBusy}
+                className={`${actionButtonClass} border-[#e2d6c3] bg-white text-[#3d1725] hover:bg-[#fffaf4]`}
+            >
+                {product.is_active ? (
+                    <EyeOff aria-hidden="true" className="h-3.5 w-3.5" />
+                ) : (
+                    <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+                )}
+                {product.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+            </button>
+            <button
+                type="button"
+                onClick={destroy}
+                disabled={isBusy || hasOrders}
+                title={hasOrders ? 'Produk sudah pernah dipesan. Nonaktifkan untuk menyembunyikannya.' : undefined}
+                aria-label={`Hapus ${product.name}`}
+                className={`${actionButtonClass} border-red-200 bg-white text-red-700 hover:bg-red-50`}
+            >
+                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                Hapus
+            </button>
+        </div>
     );
 }
 
@@ -54,7 +119,7 @@ export default function Index({ store, products = { data: [] } }) {
             <section className="overflow-hidden rounded-2xl border border-[#eadfcd] bg-white">
                 {products.data.length > 0 ? (
                     <>
-                        <div className="hidden overflow-x-auto md:block">
+                        <div className="relative hidden overflow-x-auto md:block">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-[#faf6f0] text-xs uppercase tracking-wide text-[#8b8178]">
                                     <tr>
@@ -63,6 +128,7 @@ export default function Index({ store, products = { data: [] } }) {
                                         <th className="px-5 py-3 text-right font-semibold">Harga</th>
                                         <th className="px-5 py-3 text-right font-semibold">Stok</th>
                                         <th className="px-5 py-3 font-semibold">Status</th>
+                                        <th className="px-5 py-3 font-semibold">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#f0e6d6]">
@@ -71,12 +137,16 @@ export default function Index({ store, products = { data: [] } }) {
                                             <td className="px-5 py-3">
                                                 <div className="flex items-center gap-3">
                                                     <ProductThumbnail product={product} />
-                                                    <Link
-                                                        href={route('product.show', product.slug)}
-                                                        className="font-semibold text-[#3d1725] hover:text-crimson-700 hover:underline"
-                                                    >
-                                                        {product.name}
-                                                    </Link>
+                                                    {product.is_active ? (
+                                                        <Link
+                                                            href={route('product.show', product.slug)}
+                                                            className="font-semibold text-[#3d1725] hover:text-crimson-700 hover:underline"
+                                                        >
+                                                            {product.name}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="font-semibold text-[#3d1725]">{product.name}</span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-5 py-3 text-[#746b64]">{product.category?.name ?? '-'}</td>
@@ -88,6 +158,9 @@ export default function Index({ store, products = { data: [] } }) {
                                             </td>
                                             <td className="px-5 py-3">
                                                 <StatusBadge isActive={product.is_active} />
+                                            </td>
+                                            <td className="px-5 py-3">
+                                                <ProductActions product={product} />
                                             </td>
                                         </tr>
                                     ))}
@@ -109,6 +182,9 @@ export default function Index({ store, products = { data: [] } }) {
                                             <span className="font-semibold text-[#3d1725]">{formatCurrency(product.base_price)}</span>
                                             <span className="text-[#8b8178]"> · Stok {product.stock}</span>
                                         </p>
+                                        <div className="mt-3">
+                                            <ProductActions product={product} />
+                                        </div>
                                     </div>
                                 </li>
                             ))}

@@ -68,6 +68,65 @@ class SellerDashboardControllerTest extends TestCase
         );
     }
 
+    public function test_seller_dashboard_revenue_excludes_cancelled_orders(): void
+    {
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $buyer = User::factory()->create();
+        $store = Store::create([
+            'user_id' => $seller->id,
+            'name' => 'Toko Seller',
+            'slug' => 'toko-seller',
+            'is_open' => true,
+        ]);
+
+        foreach (['completed' => 100000, 'cancelled' => 40000] as $status => $total) {
+            Order::create([
+                'order_number' => 'INV-'.strtoupper($status),
+                'user_id' => $buyer->id,
+                'store_id' => $store->id,
+                'total_amount' => $total,
+                'status' => $status,
+                'payment_status' => 'paid',
+                'recipient_name' => 'Pembeli',
+                'recipient_phone' => '081234567890',
+            ]);
+        }
+
+        $this->actingAs($seller)
+            ->get(route('seller.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.monthly_revenue', 100000)
+                ->where('stats.total_orders', 2)
+            );
+    }
+
+    public function test_seller_dashboard_revenue_counts_only_verified_payments(): void
+    {
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $buyer = User::factory()->create();
+        $store = $seller->ownedStore();
+
+        foreach (['paid' => 100000, 'unpaid' => 30000, 'pending_verification' => 20000] as $paymentStatus => $total) {
+            Order::create([
+                'order_number' => 'INV-'.strtoupper($paymentStatus),
+                'user_id' => $buyer->id,
+                'store_id' => $store->id,
+                'total_amount' => $total,
+                'status' => 'pending',
+                'payment_status' => $paymentStatus,
+                'recipient_name' => 'Pembeli',
+                'recipient_phone' => '081234567890',
+            ]);
+        }
+
+        $this->actingAs($seller)
+            ->get(route('seller.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.monthly_revenue', 100000)
+                ->where('stats.total_orders', 3)
+            );
+    }
+
     public function test_seller_dashboard_creates_a_store_for_a_seller_without_one(): void
     {
         $seller = User::factory()->create(['role' => 'merchant']);

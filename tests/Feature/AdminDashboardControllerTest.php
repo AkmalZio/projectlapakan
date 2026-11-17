@@ -6,9 +6,13 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class AdminDashboardControllerTest extends TestCase
@@ -136,6 +140,253 @@ class AdminDashboardControllerTest extends TestCase
         ]);
     }
 
+    public function test_admin_cannot_probe_another_store_order_with_an_invalid_status(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $this->createStore($merchant, 'Toko Merchant');
+        $otherStore = $this->createStore(User::factory()->create(['role' => 'merchant']), 'Toko Lain');
+        $order = $this->createOrder($otherStore, User::factory()->create(), 'INV-OTHER-003');
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'delivered'])
+            ->assertNotFound();
+    }
+
+    #[TestWith(['completed'])]
+    #[TestWith(['cancelled'])]
+    public function test_admin_cannot_change_an_order_with_a_final_status(string $finalStatus): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $store = $this->createStore($admin, 'Toko Admin');
+        $order = $this->createOrder($store, User::factory()->create(), 'INV-FINAL-001', $finalStatus);
+
+        $response = $this->actingAs($admin)
+            ->from(route('admin.dashboard'))
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'pending']);
+
+        $response->assertRedirect(route('admin.dashboard'));
+        $response->assertSessionHasErrors(['status' => 'Pesanan yang sudah selesai atau dibatalkan tidak dapat diubah lagi.']);
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => $finalStatus]);
+    }
+
+    public function test_cancelling_an_order_restores_stock_and_refunds_the_payment(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $store = $this->createStore($merchant, 'Toko Merchant');
+        $product = $this->createProduct($store, stock: 4);
+        $variant = ProductVariant::create(['product_id' => $product->id, 'type' => 'size', 'name' => '20 cm', 'stock' => 1]);
+        $order = $this->createOrder($store, User::factory()->create(), 'INV-CANCEL-001', 'confirmed');
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'product_name' => $product->name,
+            'variant_name' => $variant->name,
+            'price' => 75000,
+            'quantity' => 2,
+            'subtotal' => 150000,
+        ]);
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'cancelled'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'refunded']);
+        $this->assertSame(6, $product->fresh()->stock);
+        $this->assertSame(3, $variant->fresh()->stock);
+    }
+
+    public function test_admin_without_a_store_gets_an_empty_default_store_on_first_visit(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin LAPAKan']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Dashboard')
+                ->where('store.name', 'Admin LAPAKan Store')
+                ->where('stats.total_orders', 0)
+                ->where('orders.total', 0)
+            );
+
+        $this->assertDatabaseCount('stores', 1);
+        $this->assertDatabaseHas('stores', ['user_id' => $admin->id]);
+    }
+
+    public function test_checkout_order_is_monitored_and_updated_by_its_store_and_tracked_by_the_buyer(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $otherMerchant = User::factory()->create(['role' => 'merchant']);
+        $buyer = User::factory()->create();
+        $store = $this->createStore($merchant, 'Toko Merchant');
+        $this->createStore($otherMerchant, 'Toko Lain');
+        $product = $this->createProduct($store, 'Bolu Pandan', 5);
+        $deliveryDate = now()->addDays(2)->format('Y-m-d');
+
+        $this->actingAs($buyer)
+            ->withSession([
+                'checkout_cart' => [
+                    $product->id.'_0' => [
+                        'id' => $product->id.'_0',
+                        'product_id' => $product->id,
+                        'name' => $product->name,
+                        'price' => 75000.0,
+                        'quantity' => 2,
+                    ],
+                ],
+                'checkout_shipping' => [
+                    'recipient_name' => 'Budi Santoso',
+                    'recipient_phone' => '081234567890',
+                    'delivery_address' => 'Jl. Mawar No. 10 Bandung',
+                    'delivery_courier' => 'jne_reg',
+                    'delivery_date' => $deliveryDate,
+                    'delivery_time_slot' => '10:00 - 14:00',
+                    'customizations' => [$store->id => ['candles_count' => 0, 'cake_text' => null]],
+                ],
+            ])
+            ->post(route('checkout.process'), ['payment_method' => 'qris']);
+        $order = Order::sole();
+
+        $this->actingAs($merchant)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.new_orders', 1)
+                ->where('orders.total', 1)
+                ->where('orders.data.0.order_number', $order->order_number)
+                ->where('orders.data.0.user.name', $buyer->name)
+                ->where('orders.data.0.delivery_date', $deliveryDate)
+                ->where('orders.data.0.items.0.quantity', 2)
+                ->where('orders.data.0.payment_status', 'unpaid')
+            );
+        $this->actingAs($otherMerchant)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page->where('orders.total', 0)->where('stats.new_orders', 0));
+
+        Storage::fake('local');
+        $this->actingAs($buyer)
+            ->post(route('orders.payment-proof.store', $order->order_number), [
+                'payment_proof' => UploadedFile::fake()->image('bukti.jpg'),
+            ])
+            ->assertSessionHasNoErrors();
+        $this->actingAs($merchant)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.awaiting_payment_verification', 1)
+                ->where('orders.data.0.payment_status', 'pending_verification')
+                ->where('orders.data.0.has_payment_proof', true)
+                ->missing('orders.data.0.payment_proof')
+            );
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($merchant)
+            ->from(route('admin.dashboard'))
+            ->followingRedirects()
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'confirmed'])
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Dashboard')
+                ->where('flash.success', 'Status pesanan berhasil diperbarui.')
+                ->where('stats.new_orders', 0)
+                ->where('stats.processing_orders', 1)
+                ->where('orders.data.0.status', 'confirmed')
+            );
+
+        $this->actingAs($buyer)
+            ->get(route('orders.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('orders.0.order_number', $order->order_number)
+                ->where('orders.0.status', 'confirmed')
+            );
+    }
+
+    #[TestWith(['unpaid'])]
+    #[TestWith(['pending_verification'])]
+    public function test_seller_cannot_process_an_order_before_its_payment_is_verified(string $paymentStatus): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-UNPAID-001', paymentStatus: $paymentStatus);
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'confirmed'])
+            ->assertSessionHasErrors(['status' => 'Pesanan belum lunas. Verifikasi bukti transfer pembeli terlebih dahulu sebelum memproses pesanan.']);
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
+    }
+
+    public function test_cancelling_an_unpaid_order_keeps_it_unpaid_instead_of_refunded(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-UNPAID-002', paymentStatus: 'unpaid');
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.update-status', $order), ['status' => 'cancelled'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'unpaid']);
+    }
+
+    public function test_seller_can_approve_a_transfer_proof(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-001', paymentStatus: 'pending_verification');
+        $this->freezeTime();
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
+            ->assertSessionHas('success', 'Pembayaran pesanan INV-PROOF-001 diterima. Pesanan siap diproses.');
+
+        $order->refresh();
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertSame(now()->toDateTimeString(), $order->paid_at->toDateTimeString());
+    }
+
+    public function test_seller_rejects_a_transfer_proof_with_a_reason_and_the_buyer_gets_a_new_deadline(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-002', paymentStatus: 'pending_verification');
+        $this->freezeTime();
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'reject'])
+            ->assertSessionHasErrors(['reason' => 'Tuliskan alasan penolakan agar pembeli tahu apa yang harus diperbaiki.']);
+        $this->assertSame('pending_verification', $order->fresh()->payment_status);
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'reject', 'reason' => 'Nominal transfer kurang.'])
+            ->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame('unpaid', $order->payment_status);
+        $this->assertSame('Nominal transfer kurang.', $order->payment_rejection_reason);
+        $this->assertSame(now()->addHours(24)->toDateTimeString(), $order->payment_due_at->toDateTimeString());
+    }
+
+    public function test_seller_cannot_verify_a_payment_without_an_uploaded_proof(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-003', paymentStatus: 'unpaid');
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
+            ->assertSessionHasErrors(['decision' => 'Tidak ada bukti transfer yang menunggu verifikasi pada pesanan ini.']);
+
+        $this->assertSame('unpaid', $order->fresh()->payment_status);
+    }
+
+    public function test_seller_cannot_verify_the_payment_of_another_store_order(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $this->createStore($merchant, 'Toko Merchant');
+        $order = $this->createOrder($this->createStore(User::factory()->create(['role' => 'merchant']), 'Toko Lain'), User::factory()->create(), 'INV-PROOF-004', paymentStatus: 'pending_verification');
+
+        $this->actingAs($merchant)
+            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
+            ->assertNotFound();
+
+        $this->assertSame('pending_verification', $order->fresh()->payment_status);
+    }
+
     public function test_customers_cannot_access_admin_order_management(): void
     {
         $customer = User::factory()->create(['role' => 'customer']);
@@ -156,7 +407,7 @@ class AdminDashboardControllerTest extends TestCase
         ]);
     }
 
-    private function createOrder(Store $store, User $buyer, string $orderNumber, string $status = 'pending'): Order
+    private function createOrder(Store $store, User $buyer, string $orderNumber, string $status = 'pending', string $paymentStatus = 'paid'): Order
     {
         return Order::create([
             'order_number' => $orderNumber,
@@ -164,18 +415,17 @@ class AdminDashboardControllerTest extends TestCase
             'store_id' => $store->id,
             'total_amount' => 150000,
             'status' => $status,
-            'payment_status' => 'paid',
+            'payment_status' => $paymentStatus,
             'recipient_name' => 'Penerima',
             'recipient_phone' => '081234567890',
             'delivery_address' => 'Bandung',
         ]);
     }
 
-    private function createProduct(Store $store): Product
+    private function createProduct(Store $store, string $name = 'Brownies Cokelat', int $stock = 20): Product
     {
-        $category = Category::create([
+        $category = Category::firstOrCreate(['slug' => 'kue'], [
             'name' => 'Kue',
-            'slug' => 'kue',
             'icon' => 'Cake',
             'order_index' => 1,
             'is_active' => true,
@@ -183,10 +433,10 @@ class AdminDashboardControllerTest extends TestCase
 
         return $store->products()->create([
             'category_id' => $category->id,
-            'name' => 'Brownies Cokelat',
-            'slug' => 'brownies-cokelat',
+            'name' => $name,
+            'slug' => str($name)->slug()->toString(),
             'base_price' => 75000,
-            'stock' => 20,
+            'stock' => $stock,
             'is_active' => true,
         ]);
     }

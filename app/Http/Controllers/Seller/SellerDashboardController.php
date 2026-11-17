@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Seller;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,17 +16,7 @@ class SellerDashboardController extends Controller
 
         abort_unless($user instanceof User, 403);
 
-        $store = $user->store()->firstOrCreate(
-            ['user_id' => $user->id],
-            [
-                'name' => $user->name.' Store',
-                'slug' => Str::slug($user->name.'-store').'-'.$user->id,
-                'description' => 'Toko penjualan utama dari '.$user->name,
-                'phone' => $user->phone,
-                'city' => 'Jakarta',
-                'is_open' => true,
-            ],
-        );
+        $store = $user->ownedStore();
 
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
@@ -37,6 +26,7 @@ class SellerDashboardController extends Controller
             'stats' => [
                 'monthly_revenue' => $store->orders()
                     ->where('payment_status', 'paid')
+                    ->where('status', '!=', 'cancelled')
                     ->whereBetween('created_at', [$monthStart, $monthEnd])
                     ->sum('total_amount'),
                 'total_orders' => $store->orders()->count(),

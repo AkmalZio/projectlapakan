@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ImageWithFallback from '@/Components/ImageWithFallback';
 import { Head, Link, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
-import { Trash2, ArrowLeft, ArrowRight, ShoppingBag, Cake, Sparkles } from 'lucide-react';
+import { Trash2, ArrowLeft, ArrowRight, ShoppingBag, Sparkles } from 'lucide-react';
 
-export default function Cart({ cartItems = [], subtotal = 0 }) {
-    const shippingEstimate = cartItems.length > 0 ? 20000 : 0;
-    const total = subtotal + shippingEstimate;
+export default function Cart({ cartItems = [], subtotal = 0, storeCount = 1, maxItemQuantity = 99 }) {
+    const [isStartingCheckout, setIsStartingCheckout] = useState(false);
 
     const formatIDR = (val) => {
         return new Intl.NumberFormat('id-ID', {
@@ -16,7 +16,7 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
     };
 
     const handleUpdateQuantity = (cartKey, newQty) => {
-        if (newQty < 1) return;
+        if (newQty < 1 || newQty > maxItemQuantity) return;
         router.patch(route('cart.update', cartKey), { quantity: newQty }, { preserveScroll: true });
     };
 
@@ -28,7 +28,7 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
 
     return (
         <MarketplaceLayout>
-            <Head title="Keranjang Belanja - LAPAKan" />
+            <Head title="Keranjang Belanja" />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                 
@@ -42,7 +42,7 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                         
                         {/* LEFT: CART ITEMS LIST */}
-                        <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-[#EBE3D3] shadow-sm space-y-6">
+                        <div className="min-w-0 lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-[#EBE3D3] shadow-sm space-y-6">
                             
                             {/* Desktop Table Header */}
                             <div className="hidden sm:grid grid-cols-12 text-xs font-bold text-gray-400 uppercase tracking-wider pb-4 border-b border-gray-100">
@@ -59,7 +59,7 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
                                         
                                         {/* Product info */}
                                         <div className="w-full sm:col-span-6 flex items-center gap-4">
-                                            <img
+                                            <ImageWithFallback
                                                 src={item.image || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=800&auto=format&fit=crop'}
                                                 alt={item.name}
                                                 className="w-20 h-20 rounded-2xl object-cover bg-gray-100 border border-gray-100 flex-shrink-0"
@@ -97,8 +97,10 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
                                             <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white">
                                                 <button
                                                     type="button"
+                                                    aria-label={`Kurangi jumlah ${item.name}`}
+                                                    disabled={item.quantity <= 1}
                                                     onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                                                    className="w-7 h-7 flex items-center justify-center font-bold text-gray-500 hover:bg-gray-50 text-xs rounded-l-xl"
+                                                    className="w-7 h-7 flex items-center justify-center font-bold text-gray-500 hover:bg-gray-50 disabled:opacity-40 text-xs rounded-l-xl"
                                                 >
                                                     -
                                                 </button>
@@ -107,8 +109,10 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
                                                 </span>
                                                 <button
                                                     type="button"
+                                                    aria-label={`Tambah jumlah ${item.name}`}
+                                                    disabled={item.quantity >= maxItemQuantity}
                                                     onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                                                    className="w-7 h-7 flex items-center justify-center font-bold text-gray-500 hover:bg-gray-50 text-xs rounded-r-xl"
+                                                    className="w-7 h-7 flex items-center justify-center font-bold text-gray-500 hover:bg-gray-50 disabled:opacity-40 text-xs rounded-r-xl"
                                                 >
                                                     +
                                                 </button>
@@ -149,7 +153,7 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
                         </div>
 
                         {/* RIGHT: SUMMARY CARD (Dark Crimson matching Figma) */}
-                        <div className="lg:col-span-4 bg-gradient-to-br from-crimson-900 to-crimson-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-crimson-950/20 space-y-6 sticky top-28">
+                        <div className="lg:col-span-4 bg-gradient-to-br from-crimson-900 to-crimson-800 text-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-crimson-950/20 space-y-6 lg:sticky lg:top-28">
                             <div>
                                 <h3 className="text-lg font-extrabold text-white">Ringkasan Belanja</h3>
                                 <p className="text-xs text-pink-200/80 mt-0.5">Total pesanan manis pilihanmu</p>
@@ -160,27 +164,32 @@ export default function Cart({ cartItems = [], subtotal = 0 }) {
                                     <span>Total Harga ({cartItems.reduce((acc, i) => acc + i.quantity, 0)} kue)</span>
                                     <span className="font-bold">{formatIDR(subtotal)}</span>
                                 </div>
-                                <div className="flex justify-between text-pink-100">
-                                    <span>Estimasi Ongkir</span>
-                                    <span className="font-bold">{formatIDR(shippingEstimate)}</span>
+                                <div className="flex justify-between gap-3 text-pink-100">
+                                    <span>Ongkos Kirim</span>
+                                    <span className="text-right font-semibold">Dihitung di langkah pengiriman</span>
                                 </div>
-                                <div className="flex justify-between text-emerald-300">
-                                    <span>Pisau Kue</span>
-                                    <span className="font-bold">GRATIS</span>
-                                </div>
+                                {storeCount > 1 && (
+                                    <p className="text-[11px] leading-relaxed text-pink-200/80">
+                                        Produk dari {storeCount} toko dikirim terpisah, jadi ongkir dihitung per toko.
+                                    </p>
+                                )}
                             </div>
 
                             <div className="flex justify-between items-baseline">
-                                <span className="text-sm font-bold text-pink-200">Total Tagihan</span>
-                                <span className="text-2xl font-extrabold text-white">{formatIDR(total)}</span>
+                                <span className="text-sm font-bold text-pink-200">Subtotal</span>
+                                <span className="text-2xl font-extrabold text-white">{formatIDR(subtotal)}</span>
                             </div>
 
                             <button
                                 type="button"
-                                onClick={() => router.post(route('checkout.start'))}
-                                className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-pink-50 text-crimson-900 font-extrabold text-sm shadow-md transition hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
+                                disabled={isStartingCheckout}
+                                onClick={() => router.post(route('checkout.start'), {}, {
+                                    onStart: () => setIsStartingCheckout(true),
+                                    onFinish: () => setIsStartingCheckout(false),
+                                })}
+                                className="w-full py-4 px-6 rounded-2xl bg-white hover:bg-pink-50 disabled:opacity-60 text-crimson-900 font-extrabold text-sm shadow-md transition hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                             >
-                                <span>Lanjut ke Pengiriman</span>
+                                <span>{isStartingCheckout ? 'Memproses...' : 'Lanjut ke Pengiriman'}</span>
                                 <ArrowRight className="w-4 h-4 text-crimson-800" />
                             </button>
 
