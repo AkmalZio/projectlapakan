@@ -52,9 +52,12 @@ function StatCard({ label, value, description, icon: Icon, accent }) {
     );
 }
 
-export default function Dashboard({ store, stats = {}, recentOrders = [], lowStockProducts = [] }) {
+export default function Dashboard({ store, isPlatformAdmin = false, stats = {}, recentOrders = [], lowStockProducts = [] }) {
     return (
-        <SellerCenterLayout title="Ringkasan" description="Gambaran performa tokomu hari ini.">
+        <SellerCenterLayout
+            title="Ringkasan"
+            description={isPlatformAdmin ? 'Gambaran pesanan dan performa seluruh toko LAPAKan.' : 'Gambaran performa tokomu hari ini.'}
+        >
             <Head title="Dashboard Penjual" />
 
             <div className="flex w-full flex-col gap-7">
@@ -64,18 +67,22 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                             <div className="mb-4 flex flex-wrap items-center gap-2.5">
                                 <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.09] px-3 py-1.5 text-xs font-medium text-[#f9e9ed]">
                                     <Store aria-hidden="true" className="h-3.5 w-3.5" />
-                                    {store?.name ?? 'Toko Saya'}
+                                    {isPlatformAdmin ? 'Semua Toko LAPAKan' : store?.name ?? 'Toko Saya'}
                                 </span>
-                                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${store?.is_open ? 'bg-emerald-300/15 text-emerald-100' : 'bg-white/10 text-white/80'}`}>
-                                    <span className={`h-1.5 w-1.5 rounded-full ${store?.is_open ? 'bg-emerald-300' : 'bg-white/50'}`} />
-                                    {store?.is_open ? 'Sedang buka' : 'Sedang tutup'}
-                                </span>
+                                {!isPlatformAdmin && (
+                                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${store?.is_open ? 'bg-emerald-300/15 text-emerald-100' : 'bg-white/10 text-white/80'}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${store?.is_open ? 'bg-emerald-300' : 'bg-white/50'}`} />
+                                        {store?.is_open ? 'Sedang buka' : 'Sedang tutup'}
+                                    </span>
+                                )}
                             </div>
                             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                                Halo, {store?.name ?? 'penjual'}.
+                                {isPlatformAdmin ? 'Halo, Admin LAPAKan.' : `Halo, ${store?.name ?? 'penjual'}.`}
                             </h1>
                             <p className="mt-2 max-w-xl text-sm leading-6 text-[#f4dfe5]/85">
-                                Pantau pesanan, penjualan, dan stok produkmu dari sini.
+                                {isPlatformAdmin
+                                    ? 'Pantau pesanan dan penjualan dari seluruh toko di LAPAKan.'
+                                    : 'Pantau pesanan, penjualan, dan stok produkmu dari sini.'}
                             </p>
                         </div>
 
@@ -108,9 +115,9 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                     </div>
                     <section aria-label="Ringkasan performa toko" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         <StatCard
-                            label="Penjualan bulan ini"
+                            label={isPlatformAdmin ? 'Penjualan semua toko bulan ini' : 'Penjualan bulan ini'}
                             value={formatCurrency(stats.monthly_revenue)}
-                            description="Total pesanan yang sudah dibayar"
+                            description={isPlatformAdmin ? 'Total pesanan dibayar dari seluruh toko' : 'Total pesanan yang sudah dibayar'}
                             icon={CircleDollarSign}
                             accent="bg-[#e6f4eb] text-[#28704c]"
                         />
@@ -143,7 +150,9 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                         <div className="flex items-center justify-between gap-4 border-b border-[#f0e8dc] px-5 py-5 sm:px-6">
                             <div>
                                 <h2 className="font-semibold text-[#3d1725]">Pesanan terbaru</h2>
-                                <p className="mt-1 text-sm text-[#8b8178]">Yang baru masuk ke tokomu</p>
+                                <p className="mt-1 text-sm text-[#8b8178]">
+                                    {isPlatformAdmin ? 'Pesanan terbaru dari semua toko' : 'Yang baru masuk ke tokomu'}
+                                </p>
                             </div>
                             <span className="rounded-full bg-[#f5eadf] px-3 py-1.5 text-xs font-semibold text-[#6b2338]">
                                 {stats.total_orders ?? 0} pesanan
@@ -167,6 +176,11 @@ export default function Dashboard({ store, stats = {}, recentOrders = [], lowSto
                                             <tr key={order.id} className="transition-colors hover:bg-[#fcf8f1]">
                                                 <td className="whitespace-nowrap px-6 py-4 font-semibold text-[#4a071c]">
                                                     {order.order_number}
+                                                    {isPlatformAdmin && (
+                                                        <span className="mt-1 block text-xs font-normal text-[#8b8178]">
+                                                            {order.store?.name}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="whitespace-nowrap px-6 py-4 text-[#625a54]">
                                                     {order.user?.name ?? 'Pelanggan'}

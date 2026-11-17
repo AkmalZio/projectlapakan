@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,17 +21,19 @@ class SellerDashboardController extends Controller
 
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
+        $orderScope = $user->isAdmin() ? Order::query() : $store->orders();
 
         return Inertia::render('Seller/Dashboard', [
             'store' => $store,
+            'isPlatformAdmin' => $user->isAdmin(),
             'stats' => [
-                'monthly_revenue' => $store->orders()
+                'monthly_revenue' => (clone $orderScope)
                     ->where('payment_status', 'paid')
                     ->where('status', '!=', 'cancelled')
                     ->whereBetween('created_at', [$monthStart, $monthEnd])
                     ->sum('total_amount'),
-                'total_orders' => $store->orders()->count(),
-                'orders_to_process' => $store->orders()
+                'total_orders' => (clone $orderScope)->count(),
+                'orders_to_process' => (clone $orderScope)
                     ->whereIn('status', ['pending', 'confirmed'])
                     ->count(),
                 'active_products' => $store->products()->where('is_active', true)->count(),
@@ -39,11 +42,11 @@ class SellerDashboardController extends Controller
                     ->where('stock', '<=', 5)
                     ->count(),
             ],
-            'recentOrders' => $store->orders()
-                ->with('user:id,name')
+            'recentOrders' => (clone $orderScope)
+                ->with(['user:id,name', 'store:id,name'])
                 ->latest()
                 ->take(6)
-                ->get(['id', 'order_number', 'user_id', 'status', 'total_amount', 'created_at']),
+                ->get(['id', 'order_number', 'store_id', 'user_id', 'status', 'total_amount', 'created_at']),
             'lowStockProducts' => $store->products()
                 ->with('category:id,name')
                 ->where('is_active', true)

@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\OrderController;
@@ -11,13 +12,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\Seller\SellerDashboardController;
 use App\Http\Controllers\Seller\SellerRegistrationController;
-use App\Models\Favorite;
-use App\Models\Review;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-// Marketplace Public Routes
 Route::get('/', [MarketplaceController::class, 'index'])->name('home');
 Route::get('/katalog', [MarketplaceController::class, 'catalog'])->name('catalog');
 Route::get('/product/{slug}', [MarketplaceController::class, 'show'])->name('product.show');
@@ -31,7 +27,6 @@ Route::post('/seller/register', [SellerRegistrationController::class, 'store'])
     ->middleware(['auth', 'verified', 'role:customer'])
     ->name('seller.register');
 
-// Shopping Cart Routes
 Route::prefix('cart')->name('cart.')->group(function () {
     Route::get('/', [CartController::class, 'index'])->name('index');
     Route::post('/add', [CartController::class, 'add'])->name('add');
@@ -39,7 +34,6 @@ Route::prefix('cart')->name('cart.')->group(function () {
     Route::delete('/{cartKey}', [CartController::class, 'remove'])->name('remove');
 });
 
-// Checkout Multi-Step Routes
 Route::middleware(['auth', 'verified'])->prefix('checkout')->name('checkout.')->group(function () {
     Route::post('/start', [CheckoutController::class, 'startFromCart'])->name('start');
     Route::get('/', [CheckoutController::class, 'shipping'])->name('shipping');
@@ -50,47 +44,13 @@ Route::middleware(['auth', 'verified'])->prefix('checkout')->name('checkout.')->
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Order Success, List & Tracking Routes
     Route::get('/pesanan', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/success/{orderNumber}', [CheckoutController::class, 'success'])->name('orders.success');
     Route::get('/orders/{orderNumber}', [OrderController::class, 'show'])->name('orders.show');
     Route::post('/orders/{orderNumber}/payment-proof', [OrderController::class, 'uploadPaymentProof'])->name('orders.payment-proof.store');
     Route::get('/orders/{orderNumber}/payment-proof', [OrderController::class, 'showPaymentProof'])->name('orders.payment-proof.show');
     Route::post('/orders/{orderNumber}/reviews', [ReviewController::class, 'store'])->name('orders.reviews.store');
-
-    Route::get('/dashboard', function () {
-        $user = Auth::user();
-
-        if ($user?->isSeller()) {
-            return redirect()->route('seller.dashboard');
-        }
-
-        $favoriteProducts = Favorite::with('product')
-            ->where('user_id', $user->id)
-            ->latest()
-            ->get()
-            ->filter(fn (Favorite $favorite) => $favorite->product?->is_active === true)
-            ->map(fn (Favorite $favorite) => [
-                'id' => $favorite->product->id,
-                'product_id' => $favorite->product_id,
-                'name' => $favorite->product->name,
-                'slug' => $favorite->product->slug,
-                'image' => $favorite->product->image,
-                'price' => $favorite->product->base_price,
-            ])
-            ->values();
-
-        $favoriteCount = $favoriteProducts->count();
-        $averageRating = Review::where('user_id', $user->id)->avg('rating');
-
-        return Inertia::render('Dashboard', [
-            'favoriteCount' => $favoriteCount,
-            'favoriteProducts' => $favoriteProducts,
-            'ratingAverage' => $averageRating ? round((float) $averageRating, 1) : 0.0,
-            'ordersCount' => $user->orders()->count(),
-        ]);
-    })->name('dashboard');
-
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/favorites/toggle', [FavoriteController::class, 'toggle'])->name('favorites.toggle');
 
     Route::middleware('role:admin,merchant')->group(function () {

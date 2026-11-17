@@ -117,7 +117,7 @@ function PaymentVerification({ order }) {
     );
 }
 
-function OrderRow({ order, orderStatuses, statusesAllowedBeforePayment }) {
+function OrderRow({ order, orderStatuses, statusesAllowedBeforePayment, isPlatformAdmin }) {
     const form = useForm({ status: order.status });
     const hasFinalStatus = finalOrderStatuses.includes(order.status);
     const isPaid = order.payment_status === 'paid';
@@ -151,6 +151,9 @@ function OrderRow({ order, orderStatuses, statusesAllowedBeforePayment }) {
                         timeStyle: 'short',
                     })}
                 </p>
+                {isPlatformAdmin && order.store?.name && (
+                    <p className="mt-1 text-xs font-medium text-crimson-700">{order.store.name}</p>
+                )}
                 <details className="mt-2" open={order.payment_status === 'pending_verification' && !hasFinalStatus ? true : undefined}>
                     <summary className="cursor-pointer text-xs font-semibold text-crimson-800">Lihat rincian</summary>
                     <div className="mt-3 w-64 max-w-full space-y-3 rounded-xl bg-cream-50 p-3 text-xs text-gray-600">
@@ -292,6 +295,7 @@ export default function Dashboard({
     orderStatuses = [],
     statusesAllowedBeforePayment = ['pending', 'cancelled'],
     stats = {},
+    isPlatformAdmin = false,
 }) {
     const statusFilters = [
         { value: 'all', label: 'Semua' },
@@ -301,7 +305,7 @@ export default function Dashboard({
     return (
         <SellerCenterLayout
             title="Pesanan"
-            description={`Kelola pesanan masuk ${store?.name ?? 'tokomu'}.`}
+            description={isPlatformAdmin ? 'Kelola pesanan masuk dari semua toko LAPAKan.' : `Kelola pesanan masuk ${store?.name ?? 'tokomu'}.`}
             actions={
                 <Link
                     href={route('admin.products.create')}
@@ -375,6 +379,7 @@ export default function Dashboard({
                                                 order={order}
                                                 orderStatuses={orderStatuses}
                                                 statusesAllowedBeforePayment={statusesAllowedBeforePayment}
+                                                isPlatformAdmin={isPlatformAdmin}
                                             />
                                         ))}
                                     </tbody>

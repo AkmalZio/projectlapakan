@@ -29,8 +29,10 @@ class AdminDashboardController extends Controller
 
         abort_unless(is_string($status) && in_array($status, ['all', ...$orderStatuses], true), 404);
 
-        $ordersQuery = $store->orders()
+        $orderScope = $user->isAdmin() ? Order::query() : $store->orders();
+        $ordersQuery = (clone $orderScope)
             ->with([
+                'store:id,name',
                 'user:id,name',
                 'items:id,order_id,product_id,product_name,variant_name,quantity,subtotal,cake_text,custom_request',
             ])
@@ -47,20 +49,21 @@ class AdminDashboardController extends Controller
             'orderStatusFilter' => $status,
             'orderStatuses' => $orderStatuses,
             'statusesAllowedBeforePayment' => Order::STATUSES_ALLOWED_BEFORE_PAYMENT,
+            'isPlatformAdmin' => $user->isAdmin(),
             'stats' => [
                 'total_products' => $store->products()->count(),
                 'active_products' => $store->products()->where('is_active', true)->count(),
                 'total_stock' => (int) $store->products()->sum('stock'),
-                'total_orders' => $store->orders()->count(),
-                'new_orders' => $store->orders()->where('status', 'pending')->count(),
-                'awaiting_payment_verification' => $store->orders()
+                'total_orders' => (clone $orderScope)->count(),
+                'new_orders' => (clone $orderScope)->where('status', 'pending')->count(),
+                'awaiting_payment_verification' => (clone $orderScope)
                     ->where('payment_status', 'pending_verification')
                     ->where('status', '!=', 'cancelled')
                     ->count(),
-                'processing_orders' => $store->orders()
+                'processing_orders' => (clone $orderScope)
                     ->whereIn('status', ['confirmed', 'baking', 'delivering'])
                     ->count(),
-                'completed_orders' => $store->orders()->where('status', 'completed')->count(),
+                'completed_orders' => (clone $orderScope)->where('status', 'completed')->count(),
             ],
         ]);
     }
@@ -156,6 +159,10 @@ class AdminDashboardController extends Controller
         $user = $request->user();
 
         abort_unless($user instanceof User, 403);
+
+        if ($user->isAdmin()) {
+            return $user->ownedStore();
+        }
 
         $store = $user->store()->first();
 

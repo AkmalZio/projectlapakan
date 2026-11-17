@@ -52,16 +52,23 @@ class MarketplaceTest extends TestCase
             'description' => 'Kue lezat istimewa',
             'base_price' => 280000,
             'image' => 'https://example.com/cake.jpg',
+            'gallery' => ['https://example.com/cake-detail.jpg'],
             'shelf_life_days' => 5,
+            'stock' => 10,
             'is_featured' => true,
             'is_active' => true,
+            'allows_custom_message' => true,
         ]);
     }
 
     public function test_home_page_can_be_rendered(): void
     {
         $response = $this->get('/');
-        $response->assertStatus(200);
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('Home')
+            ->where('featuredProducts.0.image', 'https://example.com/cake.jpg')
+        );
     }
 
     public function test_catalog_page_can_be_rendered(): void
@@ -73,7 +80,11 @@ class MarketplaceTest extends TestCase
     public function test_product_detail_can_be_rendered(): void
     {
         $response = $this->get('/product/'.$this->product->slug);
-        $response->assertStatus(200);
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('ProductDetail')
+            ->where('product.gallery.0', 'https://example.com/cake-detail.jpg')
+        );
     }
 
     public function test_product_detail_does_not_show_custom_cake_text_field(): void
@@ -315,6 +326,15 @@ class MarketplaceTest extends TestCase
 
     public function test_order_can_be_created_from_checkout(): void
     {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $adminStore = Store::create([
+            'user_id' => $admin->id,
+            'name' => 'Toko Admin',
+            'slug' => 'toko-admin',
+            'is_open' => true,
+        ]);
+        $this->product->update(['store_id' => $adminStore->id]);
+
         $this->actingAs($this->user);
 
         // Add to cart session
@@ -335,7 +355,7 @@ class MarketplaceTest extends TestCase
                 'delivery_courier' => 'sicepat_reg',
                 'delivery_date' => now()->addDays(2)->format('Y-m-d'),
                 'delivery_time_slot' => '09:00 - 12:00',
-                'customizations' => [$this->store->id => ['candles_count' => 2, 'cake_text' => 'Happy 25th!']],
+                'customizations' => [$adminStore->id => ['candles_count' => 2, 'cake_text' => 'Happy 25th!']],
             ],
         ]);
         $this->freezeTime();
@@ -354,6 +374,7 @@ class MarketplaceTest extends TestCase
         ]);
 
         $order = Order::first();
+        $this->assertSame($adminStore->id, $order->store_id);
         $this->assertSame(2, $order->items()->first()->quantity);
         $this->assertSame('Happy 25th!', $order->items()->first()->cake_text);
         $this->assertSame('pending', $order->status);
@@ -361,6 +382,14 @@ class MarketplaceTest extends TestCase
         $this->assertNull($order->paid_at);
         $this->assertSame(now()->addHours(24)->toDateTimeString(), $order->payment_due_at->toDateTimeString());
         $response->assertRedirect(route('orders.success', $order->order_number));
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('stats.total_orders', 1)
+                ->where('orders.total', 1)
+                ->where('orders.data.0.order_number', $order->order_number)
+            );
     }
 
     public function test_cake_text_and_candles_go_only_to_the_order_of_the_store_they_were_chosen_for(): void
@@ -832,6 +861,7 @@ class MarketplaceTest extends TestCase
             'name' => $name,
             'slug' => str($name)->slug()->toString(),
             'base_price' => $price,
+            'stock' => 10,
             'image' => 'https://example.com/product.jpg',
             'is_active' => true,
         ]);

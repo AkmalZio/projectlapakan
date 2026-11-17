@@ -51,6 +51,22 @@ class SellerDashboardControllerTest extends TestCase
             'recipient_name' => 'Pembeli',
             'recipient_phone' => '081234567890',
         ]);
+        $otherStore = Store::create([
+            'user_id' => User::factory()->create(['role' => 'merchant'])->id,
+            'name' => 'Toko Lain',
+            'slug' => 'toko-lain',
+            'is_open' => true,
+        ]);
+        Order::create([
+            'order_number' => 'INV-OTHER-001',
+            'user_id' => $buyer->id,
+            'store_id' => $otherStore->id,
+            'total_amount' => 99000,
+            'status' => 'pending',
+            'payment_status' => 'paid',
+            'recipient_name' => 'Pembeli',
+            'recipient_phone' => '081234567890',
+        ]);
 
         $response = $this->actingAs($seller)->get(route('seller.dashboard'));
 
@@ -63,6 +79,7 @@ class SellerDashboardControllerTest extends TestCase
             ->where('stats.active_products', 1)
             ->where('stats.low_stock_products', 1)
             ->where('recentOrders.0.order_number', 'INV-SELLER-001')
+            ->where('recentOrders.0.store.name', 'Toko Seller')
             ->where('recentOrders.0.user.name', $buyer->name)
             ->where('lowStockProducts.0.name', 'Kue Cokelat')
         );
@@ -124,6 +141,41 @@ class SellerDashboardControllerTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('stats.monthly_revenue', 100000)
                 ->where('stats.total_orders', 3)
+            );
+    }
+
+    public function test_admin_dashboard_summarizes_orders_across_all_stores(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $buyer = User::factory()->create();
+        $store = Store::create([
+            'user_id' => $seller->id,
+            'name' => 'Toko Merchant',
+            'slug' => 'toko-merchant',
+            'is_open' => true,
+        ]);
+        Order::create([
+            'order_number' => 'INV-ADMIN-SUMMARY-001',
+            'user_id' => $buyer->id,
+            'store_id' => $store->id,
+            'total_amount' => 245000,
+            'status' => 'confirmed',
+            'payment_status' => 'paid',
+            'recipient_name' => 'Pembeli',
+            'recipient_phone' => '081234567890',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('seller.dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->component('Seller/Dashboard')
+                ->where('isPlatformAdmin', true)
+                ->where('stats.monthly_revenue', 245000)
+                ->where('stats.total_orders', 1)
+                ->where('stats.orders_to_process', 1)
+                ->where('recentOrders.0.order_number', 'INV-ADMIN-SUMMARY-001')
+                ->where('recentOrders.0.store.name', 'Toko Merchant')
             );
     }
 

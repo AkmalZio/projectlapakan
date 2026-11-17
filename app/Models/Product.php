@@ -11,39 +11,16 @@ class Product extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'store_id',
-        'category_id',
-        'name',
-        'slug',
-        'description',
-        'base_price',
-        'image',
-        'gallery',
-        'shelf_life_days',
-        'is_preorder',
-        'preorder_days',
-        'stock',
-        'weight_grams',
-        'is_featured',
-        'is_active',
-        'allows_custom_message',
-        'includes_candles',
-        'includes_knife',
-    ];
+    protected $guarded = [];
 
     protected function casts(): array
     {
         return [
             'base_price' => 'decimal:2',
             'gallery' => 'array',
-            'shelf_life_days' => 'integer',
-            'is_preorder' => 'boolean',
-            'preorder_days' => 'integer',
-            'stock' => 'integer',
-            'weight_grams' => 'integer',
             'is_featured' => 'boolean',
             'is_active' => 'boolean',
+            'is_preorder' => 'boolean',
             'allows_custom_message' => 'boolean',
             'includes_candles' => 'boolean',
             'includes_knife' => 'boolean',
@@ -78,5 +55,10 @@ class Product extends Model
     public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function getPriceAttribute(): string
+    {
+        return (string) $this->base_price;
     }
 }

@@ -19,7 +19,7 @@ class AdminDashboardControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_dashboard_lists_only_its_store_orders_and_details(): void
+    public function test_admin_dashboard_lists_orders_from_all_stores_and_their_details(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $buyer = User::factory()->create();
@@ -44,24 +44,34 @@ class AdminDashboardControllerTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->component('Admin/Dashboard')
-            ->where('stats.total_orders', 1)
+            ->where('isPlatformAdmin', true)
+            ->where('stats.total_orders', 2)
             ->where('stats.processing_orders', 1)
-            ->where('orders.total', 1)
-            ->where('orders.data.0.order_number', 'INV-ADMIN-001')
-            ->where('orders.data.0.user.name', $buyer->name)
-            ->where('orders.data.0.items.0.product_name', 'Brownies Cokelat')
-            ->where('orders.data.0.items.0.cake_text', 'Selamat!')
-            ->where('orders.data.0.items.0.custom_request', 'Tanpa kacang')
-            ->where('orders.data.0.greeting_card_message', 'Selamat ulang tahun!')
+            ->where('orders.total', 2)
+            ->where('orders.data', function ($orders) use ($buyer) {
+                $orders = collect($orders)->keyBy('order_number');
+                $adminOrder = $orders->get('INV-ADMIN-001');
+                $otherOrder = $orders->get('INV-OTHER-001');
+
+                return $adminOrder !== null
+                    && $otherOrder !== null
+                    && data_get($otherOrder, 'store.name') === 'Toko Lain'
+                    && data_get($adminOrder, 'user.name') === $buyer->name
+                    && data_get($adminOrder, 'items.0.product_name') === 'Brownies Cokelat'
+                    && data_get($adminOrder, 'items.0.cake_text') === 'Selamat!'
+                    && data_get($adminOrder, 'items.0.custom_request') === 'Tanpa kacang'
+                    && data_get($adminOrder, 'greeting_card_message') === 'Selamat ulang tahun!';
+            })
         );
     }
 
-    public function test_admin_can_filter_its_store_orders_by_status(): void
+    public function test_admin_can_filter_orders_from_all_stores_by_status(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $store = $this->createStore($admin, 'Toko Admin');
-        $this->createOrder($store, User::factory()->create(), 'INV-PENDING-001', 'pending');
-        $this->createOrder($store, User::factory()->create(), 'INV-COMPLETED-001', 'completed');
+        $adminStore = $this->createStore($admin, 'Toko Admin');
+        $merchantStore = $this->createStore(User::factory()->create(['role' => 'merchant']), 'Toko Merchant');
+        $this->createOrder($adminStore, User::factory()->create(), 'INV-PENDING-001', 'pending');
+        $this->createOrder($merchantStore, User::factory()->create(), 'INV-COMPLETED-001', 'completed');
 
         $this->actingAs($admin)
             ->get(route('admin.dashboard', ['status' => 'completed']))
@@ -81,34 +91,42 @@ class AdminDashboardControllerTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_admin_can_update_status_of_its_store_order(): void
+    public function test_admin_can_update_status_of_an_order_from_any_store(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $store = $this->createStore($admin, 'Toko Admin');
-        $order = $this->createOrder($store, User::factory()->create(), 'INV-STATUS-001');
+        $merchantStore = $this->createStore(User::factory()->create(['role' => 'merchant']), 'Toko Merchant');
+        $order = $this->createOrder($merchantStore, User::factory()->create(), 'INV-STATUS-001');
 
         $response = $this->actingAs($admin)
-            ->from(route('admin.dashboard'))
+            ->from(route('admin.dashboard', ['status' => 'baking']))
             ->patch(route('admin.orders.update-status', $order), [
                 'status' => 'baking',
             ]);
 
-        $response->assertRedirect(route('admin.dashboard'));
+        $response->assertRedirect(route('admin.dashboard', ['status' => 'baking']));
         $response->assertSessionHas('success', 'Status pesanan berhasil diperbarui.');
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
             'status' => 'baking',
         ]);
+
+        $this->get(route('admin.dashboard', ['status' => 'baking']))
+            ->assertInertia(fn ($page) => $page
+                ->where('orderStatusFilter', 'baking')
+                ->where('orders.total', 1)
+                ->where('orders.data.0.order_number', 'INV-STATUS-001')
+                ->where('orders.data.0.status', 'baking')
+            );
     }
 
-    public function test_admin_cannot_read_or_update_an_order_from_another_store(): void
+    public function test_merchant_cannot_update_an_order_from_another_store(): void
     {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $otherMerchant = User::factory()->create(['role' => 'merchant']);
-        $otherStore = $this->createStore($otherMerchant, 'Toko Lain');
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $this->createStore($merchant, 'Toko Merchant');
+        $otherStore = $this->createStore(User::factory()->create(['role' => 'merchant']), 'Toko Lain');
         $order = $this->createOrder($otherStore, User::factory()->create(), 'INV-OTHER-002');
 
-        $response = $this->actingAs($admin)
+        $response = $this->actingAs($merchant)
             ->patch(route('admin.orders.update-status', $order), [
                 'status' => 'completed',
             ]);
