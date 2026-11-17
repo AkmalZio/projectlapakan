@@ -8,35 +8,18 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DessertMarketplaceSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Create Users
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@lapakan.com'],
-            [
-                'name' => 'Admin LAPAKan',
-                'password' => Hash::make('password'),
-                'role' => 'admin',
-                'phone' => '081234567890',
-            ]
-        );
+        // 1. Create (or restore) the shared demo accounts
+        $this->call(DemoUserSeeder::class);
 
-        $merchant = User::firstOrCreate(
-            ['email' => 'baker@lapakan.com'],
-            [
-                'name' => 'LAPAKan Artisan Bakery',
-                'password' => Hash::make('password'),
-                'role' => 'merchant',
-                'phone' => '081298765432',
-            ]
-        );
+        $merchant = User::where('email', 'baker@lapakan.com')->firstOrFail();
 
-        // 2. Create Main Bakery Store
-        $store = Store::firstOrCreate(
+        // 2. Create Main Bakery Store, always owned by the demo merchant
+        $store = Store::updateOrCreate(
             ['slug' => 'lapakan-artisan-bakery'],
             [
                 'user_id' => $merchant->id,
