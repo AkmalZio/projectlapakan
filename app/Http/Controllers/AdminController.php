@@ -24,12 +24,21 @@ class AdminController extends Controller
 
     public function products(Request $request): Response
     {
-        $store = $this->storeOf($request->user());
+        $user = $request->user();
+        abort_unless($user instanceof User, 403);
+
+        $store = $user->isAdmin() ? null : $user->ownedStore();
+        $products = ($store?->products() ?? Product::query())
+            ->with('category:id,name');
+
+        if ($user->isAdmin()) {
+            $products->with('store:id,name');
+        }
 
         return Inertia::render('Admin/Products/Index', [
-            'store' => $store->only(['id', 'name']),
-            'products' => $store->products()
-                ->with('category:id,name')
+            'store' => $store?->only(['id', 'name']) ?? ['id' => null, 'name' => 'Semua toko'],
+            'isPlatformAdmin' => $user->isAdmin(),
+            'products' => $products
                 ->withCount('orderItems')
                 ->latest()
                 ->paginate(10)
@@ -75,11 +84,10 @@ class AdminController extends Controller
 
     public function editProduct(Request $request, Product $product): Response
     {
-        $store = $this->storeOf($request->user());
-        $this->ensureProductBelongsTo($product, $store);
+        $this->ensureProductBelongsTo($product, $request->user());
 
         return Inertia::render('Admin/Products/Edit', [
-            'store' => $store->only(['id', 'name']),
+            'store' => $product->store->only(['id', 'name']),
             'product' => $product->only([
                 'id', 'category_id', 'name', 'slug', 'description', 'base_price', 'image',
                 'stock', 'weight_grams', 'is_active', 'is_featured',
@@ -94,8 +102,7 @@ class AdminController extends Controller
      */
     public function updateProduct(Request $request, Product $product): RedirectResponse
     {
-        $store = $this->storeOf($request->user());
-        $this->ensureProductBelongsTo($product, $store);
+        $this->ensureProductBelongsTo($product, $request->user());
 
         $validated = $request->validate($this->productRules(isImageRequired: false), $this->productMessages());
 
@@ -133,7 +140,7 @@ class AdminController extends Controller
      */
     public function toggleProductActive(Request $request, Product $product): RedirectResponse
     {
-        $this->ensureProductBelongsTo($product, $this->storeOf($request->user()));
+        $this->ensureProductBelongsTo($product, $request->user());
 
         $product->update(['is_active' => ! $product->is_active]);
 
@@ -150,7 +157,7 @@ class AdminController extends Controller
      */
     public function destroyProduct(Request $request, Product $product): RedirectResponse
     {
-        $this->ensureProductBelongsTo($product, $this->storeOf($request->user()));
+        $this->ensureProductBelongsTo($product, $request->user());
 
         if ($product->orderItems()->exists()) {
             return redirect()->back()->with('error', 'Produk "'.$product->name.'" sudah pernah dipesan sehingga tidak dapat dihapus agar riwayat pesanan tetap utuh. Nonaktifkan produk ini untuk menyembunyikannya dari etalase.');
@@ -248,9 +255,13 @@ class AdminController extends Controller
         }
     }
 
-    private function ensureProductBelongsTo(Product $product, Store $store): void
+    private function ensureProductBelongsTo(Product $product, ?User $user): void
     {
-        abort_unless((int) $product->store_id === (int) $store->id, 404);
+        abort_unless($user instanceof User, 403);
+
+        if (! $user->isAdmin()) {
+            abort_unless((int) $product->store_id === (int) $user->ownedStore()->id, 404);
+        }
     }
 
     private function storeOf(?User $user): Store

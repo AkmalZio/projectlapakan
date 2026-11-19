@@ -35,7 +35,7 @@ function StatusBadge({ isActive }) {
 }
 
 const actionButtonClass =
-    'inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50';
+    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
  * Edit, show/hide and delete controls for one product. Products that were already ordered
@@ -64,15 +64,18 @@ function ProductActions({ product }) {
         <div className="flex flex-wrap items-center gap-2">
             <Link
                 href={route('admin.products.edit', product.id)}
+                title={`Edit ${product.name}`}
+                aria-label={`Edit ${product.name}`}
                 className={`${actionButtonClass} border-[#e2d6c3] bg-white text-[#3d1725] hover:bg-[#fffaf4]`}
             >
                 <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-                Edit
             </Link>
             <button
                 type="button"
                 onClick={toggleActive}
                 disabled={isBusy}
+                title={product.is_active ? `Nonaktifkan ${product.name}` : `Aktifkan ${product.name}`}
+                aria-label={product.is_active ? `Nonaktifkan ${product.name}` : `Aktifkan ${product.name}`}
                 className={`${actionButtonClass} border-[#e2d6c3] bg-white text-[#3d1725] hover:bg-[#fffaf4]`}
             >
                 {product.is_active ? (
@@ -80,24 +83,22 @@ function ProductActions({ product }) {
                 ) : (
                     <Eye aria-hidden="true" className="h-3.5 w-3.5" />
                 )}
-                {product.is_active ? 'Nonaktifkan' : 'Aktifkan'}
             </button>
             <button
                 type="button"
                 onClick={destroy}
                 disabled={isBusy || hasOrders}
-                title={hasOrders ? 'Produk sudah pernah dipesan. Nonaktifkan untuk menyembunyikannya.' : undefined}
+                title={hasOrders ? 'Produk sudah pernah dipesan. Nonaktifkan untuk menyembunyikannya.' : `Hapus ${product.name}`}
                 aria-label={`Hapus ${product.name}`}
                 className={`${actionButtonClass} border-red-200 bg-white text-red-700 hover:bg-red-50`}
             >
                 <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                Hapus
             </button>
         </div>
     );
 }
 
-export default function Index({ store, products = { data: [] } }) {
+export default function Index({ store, products = { data: [] }, isPlatformAdmin = false }) {
     const addProductButton = (
         <Link
             href={route('admin.products.create')}
@@ -110,11 +111,15 @@ export default function Index({ store, products = { data: [] } }) {
 
     return (
         <SellerCenterLayout
-            title="Produk Saya"
-            description={`${products.total ?? 0} produk di ${store?.name ?? 'tokomu'}.`}
+            title={isPlatformAdmin ? 'Semua Produk' : 'Produk Saya'}
+            description={
+                isPlatformAdmin
+                    ? `${products.total ?? 0} produk dari semua toko.`
+                    : `${products.total ?? 0} produk di ${store?.name ?? 'tokomu'}.`
+            }
             actions={addProductButton}
         >
-            <Head title="Produk Saya" />
+            <Head title={isPlatformAdmin ? 'Semua Produk' : 'Produk Saya'} />
 
             <section className="overflow-hidden rounded-2xl border border-[#eadfcd] bg-white">
                 {products.data.length > 0 ? (
@@ -137,16 +142,21 @@ export default function Index({ store, products = { data: [] } }) {
                                             <td className="px-5 py-3">
                                                 <div className="flex items-center gap-3">
                                                     <ProductThumbnail product={product} />
-                                                    {product.is_active ? (
-                                                        <Link
-                                                            href={route('product.show', product.slug)}
-                                                            className="font-semibold text-[#3d1725] hover:text-crimson-700 hover:underline"
-                                                        >
-                                                            {product.name}
-                                                        </Link>
-                                                    ) : (
-                                                        <span className="font-semibold text-[#3d1725]">{product.name}</span>
-                                                    )}
+                                                    <div className="min-w-0">
+                                                        {product.is_active ? (
+                                                            <Link
+                                                                href={route('product.show', product.slug)}
+                                                                className="font-semibold text-[#3d1725] hover:text-crimson-700 hover:underline"
+                                                            >
+                                                                {product.name}
+                                                            </Link>
+                                                        ) : (
+                                                            <span className="font-semibold text-[#3d1725]">{product.name}</span>
+                                                        )}
+                                                        {isPlatformAdmin && (
+                                                            <p className="mt-0.5 text-xs text-[#8b8178]">{product.store?.name ?? 'Toko tidak diketahui'}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-5 py-3 text-[#746b64]">{product.category?.name ?? '-'}</td>
@@ -185,6 +195,9 @@ export default function Index({ store, products = { data: [] } }) {
                                         <div className="mt-3">
                                             <ProductActions product={product} />
                                         </div>
+                                        {isPlatformAdmin && (
+                                            <p className="mt-2 text-xs text-[#8b8178]">{product.store?.name ?? 'Toko tidak diketahui'}</p>
+                                        )}
                                     </div>
                                 </li>
                             ))}

@@ -31,7 +31,44 @@ class AdminControllerTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('admin.products.index'))
-            ->assertInertia(fn ($page) => $page->component('Admin/Products/Index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Products/Index')
+                ->where('isPlatformAdmin', true)
+                ->where('store.name', 'Semua toko')
+            );
+    }
+
+    public function test_admin_can_list_and_edit_products_from_other_stores(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $product = $this->createProduct($seller);
+
+        $this->actingAs($admin)
+            ->get(route('admin.products.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('products.total', 1)
+                ->where('products.data.0.id', $product->id)
+                ->where('products.data.0.store.name', $seller->ownedStore()->name)
+            );
+
+        $this->actingAs($admin)
+            ->get(route('admin.products.edit', $product))
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Products/Edit')
+                ->where('product.id', $product->id)
+                ->where('store.name', $seller->ownedStore()->name)
+            );
+
+        $this->actingAs($admin)
+            ->patch(route('admin.products.update', $product), [
+                ...$this->validProductData($product->category),
+                'name' => 'Brownies Diperbarui Admin',
+            ])
+            ->assertRedirect(route('admin.products.index'))
+            ->assertSessionHas('success', 'Produk "Brownies Diperbarui Admin" berhasil diperbarui.');
+
+        $this->assertSame('Brownies Diperbarui Admin', $product->fresh()->name);
     }
 
     public function test_admin_can_open_create_product_form(): void
