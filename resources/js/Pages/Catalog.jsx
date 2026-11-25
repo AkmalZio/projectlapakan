@@ -17,7 +17,7 @@ export default function Catalog({ categories = [], products = { data: [] }, filt
             max_price: Number(newMaxPrice) < 1000000 ? newMaxPrice : undefined,
             sort: newSort,
         }, {
-            preserveState: true,
+            preserveState: false,
             replace: true,
         });
     };

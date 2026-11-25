@@ -1,7 +1,7 @@
 /** Buyer- and seller-facing labels for Order::PAYMENT_STATUSES. */
 export const PAYMENT_STATUS_LABELS = {
     unpaid: 'Menunggu Pembayaran',
-    pending_verification: 'Menunggu Verifikasi',
+    pending_verification: 'Menunggu Konfirmasi',
     paid: 'Lunas',
     refunded: 'Dana Dikembalikan',
 };

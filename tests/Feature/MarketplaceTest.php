@@ -77,6 +77,21 @@ class MarketplaceTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_catalog_filters_products_within_the_requested_price_range(): void
+    {
+        $this->createProduct($this->store, 'Affordable Cake', 50000);
+        $this->createProduct($this->store, 'Premium Cake', 700000);
+
+        $this->get(route('catalog', [
+            'min_price' => 100000,
+            'max_price' => 500000,
+        ]))
+            ->assertInertia(fn ($page) => $page
+                ->where('products.total', 1)
+                ->where('products.data.0.id', $this->product->id)
+            );
+    }
+
     public function test_product_detail_can_be_rendered(): void
     {
         $response = $this->get('/product/'.$this->product->slug);
@@ -360,9 +375,7 @@ class MarketplaceTest extends TestCase
         ]);
         $this->freezeTime();
 
-        $response = $this->post('/checkout/process', [
-            'payment_method' => 'bca',
-        ]);
+        $response = $this->post('/checkout/process', $this->checkoutPaymentPayload('bca'));
 
         $this->assertDatabaseHas('orders', [
             'recipient_name' => 'Budi Santoso',
@@ -378,9 +391,10 @@ class MarketplaceTest extends TestCase
         $this->assertSame(2, $order->items()->first()->quantity);
         $this->assertSame('Happy 25th!', $order->items()->first()->cake_text);
         $this->assertSame('pending', $order->status);
-        $this->assertSame('unpaid', $order->payment_status);
-        $this->assertNull($order->paid_at);
-        $this->assertSame(now()->addHours(24)->toDateTimeString(), $order->payment_due_at->toDateTimeString());
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertSame(now()->toDateTimeString(), $order->paid_at->toDateTimeString());
+        $this->assertNull($order->payment_due_at);
+        $this->assertNull($order->payment_proof);
         $response->assertRedirect(route('orders.success', $order->order_number));
 
         $this->actingAs($admin)
@@ -416,7 +430,7 @@ class MarketplaceTest extends TestCase
             ->where('total', 280000 + 50000 + 40000 + 34000 + 9000)
         );
 
-        $this->post('/checkout/process', ['payment_method' => 'bca']);
+        $this->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $cakeOrder = Order::where('store_id', $this->store->id)->sole();
         $cookieOrder = Order::where('store_id', $cookieStore->id)->sole();
@@ -458,7 +472,7 @@ class MarketplaceTest extends TestCase
     {
         $this->actingAs($this->store->user)->withSession($this->checkoutSession([$this->product]));
 
-        $response = $this->from('/checkout/payment')->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertSessionHasErrors(['cart' => 'Anda tidak dapat membeli produk dari toko Anda sendiri. Hapus "Chocolate Drip Cake" dari keranjang lalu coba lagi.']);
         $this->assertDatabaseCount('orders', 0);
@@ -495,7 +509,7 @@ class MarketplaceTest extends TestCase
         $buyer = User::factory()->create();
 
         $this->actingAs($buyer)->withSession($this->checkoutSession([$sellerProduct]));
-        $this->post('/checkout/process', ['payment_method' => 'qris']);
+        $this->post('/checkout/process', $this->checkoutPaymentPayload('qris'));
 
         $order = Order::sole();
         $this->assertSame($sellerStore->id, $order->store_id);
@@ -526,12 +540,15 @@ class MarketplaceTest extends TestCase
             ->where('total', 280000 + 40000 + 34000 + 6000)
         );
 
-        $response = $this->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertRedirect(route('orders.index'));
         $this->assertDatabaseCount('orders', 2);
         $this->assertDatabaseHas('orders', ['store_id' => $this->store->id, 'total_amount' => 280000 + 17000 + 6000, 'candles_count' => 2]);
         $this->assertDatabaseHas('orders', ['store_id' => $otherStore->id, 'total_amount' => 40000 + 17000, 'candles_count' => 0]);
+
+        $this->assertSame(2, Order::query()->where('payment_status', 'paid')->count());
+        $this->assertSame(0, Order::query()->whereNotNull('payment_proof')->count());
     }
 
     public function test_checkout_decrements_the_stock_of_purchased_products(): void
@@ -539,7 +556,7 @@ class MarketplaceTest extends TestCase
         $this->product->update(['stock' => 5]);
 
         $this->actingAs($this->user)->withSession($this->checkoutSession([$this->product], quantity: 3));
-        $this->post('/checkout/process', ['payment_method' => 'bca']);
+        $this->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $this->assertSame(2, $this->product->fresh()->stock);
     }
@@ -549,7 +566,7 @@ class MarketplaceTest extends TestCase
         $this->product->update(['stock' => 1]);
 
         $this->actingAs($this->user)->withSession($this->checkoutSession([$this->product], quantity: 2));
-        $response = $this->from('/checkout/payment')->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertRedirect('/checkout/payment');
         $response->assertSessionHasErrors(['cart' => 'Stok "Chocolate Drip Cake" tersisa 1. Kurangi jumlah pesanan lalu coba lagi.']);
@@ -562,7 +579,7 @@ class MarketplaceTest extends TestCase
         $this->product->update(['is_active' => false]);
 
         $this->actingAs($this->user)->withSession($this->checkoutSession([$this->product]));
-        $response = $this->from('/checkout/payment')->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertSessionHasErrors(['cart' => 'Produk "Chocolate Drip Cake" sudah tidak tersedia. Hapus dari keranjang lalu coba lagi.']);
         $this->assertDatabaseCount('orders', 0);
@@ -628,7 +645,7 @@ class MarketplaceTest extends TestCase
         ];
 
         $this->actingAs($this->user)->withSession($session);
-        $response = $this->from('/checkout/payment')->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertSessionHasErrors(['cart' => 'Stok "Chocolate Drip Cake" tersisa 3. Kurangi jumlah pesanan lalu coba lagi.']);
         $this->assertDatabaseCount('orders', 0);
@@ -643,7 +660,7 @@ class MarketplaceTest extends TestCase
         $session['checkout_cart'][$this->product->id.'_0']['variant_id'] = $foreignVariant->id;
 
         $this->actingAs($this->user)->withSession($session);
-        $response = $this->from('/checkout/payment')->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertSessionHasErrors(['cart' => 'Produk "Chocolate Drip Cake" sudah tidak tersedia. Hapus dari keranjang lalu coba lagi.']);
         $this->assertDatabaseCount('orders', 0);
@@ -655,7 +672,7 @@ class MarketplaceTest extends TestCase
         $session['checkout_cart'][$this->product->id.'_0']['price'] = 250000;
 
         $this->actingAs($this->user)->withSession($session);
-        $response = $this->from('/checkout/payment')->post('/checkout/process', ['payment_method' => 'bca']);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $response->assertSessionHasErrors(['cart' => 'Harga "Chocolate Drip Cake" baru saja berubah. Periksa kembali total pembayaran lalu konfirmasi ulang.']);
         $this->assertDatabaseCount('orders', 0);
@@ -676,7 +693,7 @@ class MarketplaceTest extends TestCase
             'checkout_source' => 'cart',
             'cart' => [...$session['checkout_cart'], ...$otherItem],
         ]);
-        $this->post('/checkout/process', ['payment_method' => 'bca']);
+        $this->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $this->assertDatabaseCount('orders', 1);
         $this->assertSame(array_keys($otherItem), array_keys(session('cart')));
@@ -691,7 +708,7 @@ class MarketplaceTest extends TestCase
         $this->actingAs($this->user)->withSession(['cart' => $cart]);
         $this->post('/cart/add', ['product_id' => $this->product->id, 'quantity' => 1, 'buy_now' => true]);
         $this->withSession(['checkout_shipping' => $this->checkoutSession([])['checkout_shipping']]);
-        $this->post('/checkout/process', ['payment_method' => 'bca']);
+        $this->post('/checkout/process', $this->checkoutPaymentPayload());
 
         $this->assertDatabaseHas('order_items', ['product_id' => $this->product->id]);
         $this->assertSame(array_keys($cart), array_keys(session('cart')));
@@ -705,10 +722,10 @@ class MarketplaceTest extends TestCase
         $this->actingAs($this->user)->withSession($this->checkoutSession([$this->product, $otherProduct]));
 
         $this->followingRedirects()
-            ->post('/checkout/process', ['payment_method' => 'bca'])
+            ->post('/checkout/process', $this->checkoutPaymentPayload())
             ->assertInertia(fn ($page) => $page
                 ->component('Orders/Index')
-                ->where('flash.success', 'Pesanan dibuat dan dipisah menjadi 2 pesanan sesuai toko penjual. Transfer lalu unggah bukti pembayaran di detail setiap pesanan.')
+                ->where('flash.success', 'Pembayaran tercatat dan pesanan dibuat menjadi 2 pesanan sesuai toko penjual. Pantau status pesananmu di halaman ini.')
                 ->has('orders', 2)
             );
     }
@@ -841,6 +858,14 @@ class MarketplaceTest extends TestCase
                 'customizations' => $customizations,
             ],
         ];
+    }
+
+    /**
+     * @return array{payment_method: string}
+     */
+    private function checkoutPaymentPayload(string $paymentMethod = 'bca'): array
+    {
+        return ['payment_method' => $paymentMethod];
     }
 
     private function createStore(User $owner, string $name): Store

@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
@@ -182,102 +181,13 @@ class OrderAccessTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_buyer_uploads_a_transfer_proof_and_the_order_waits_for_verification(): void
-    {
-        Storage::fake('local');
-        $order = $this->createOrder($this->buyer, paymentStatus: 'unpaid');
-        $order->update(['payment_rejection_reason' => 'Foto buram.']);
-
-        $this->actingAs($this->buyer)
-            ->from(route('orders.show', $order->order_number))
-            ->post(route('orders.payment-proof.store', $order->order_number), [
-                'payment_proof' => UploadedFile::fake()->image('bukti-transfer.jpg'),
-            ])
-            ->assertRedirect(route('orders.show', $order->order_number))
-            ->assertSessionHas('success', 'Bukti transfer berhasil diunggah. Penjual akan memverifikasi pembayaranmu.');
-
-        $order->refresh();
-        $this->assertSame('pending_verification', $order->payment_status);
-        $this->assertNull($order->payment_rejection_reason);
-        $this->assertNotNull($order->payment_proof_uploaded_at);
-        Storage::disk('local')->assertExists($order->payment_proof);
-    }
-
-    public function test_uploading_a_new_proof_replaces_the_previous_file(): void
-    {
-        Storage::fake('local');
-        $order = $this->createOrder($this->buyer, paymentStatus: 'unpaid');
-        $this->actingAs($this->buyer)->post(route('orders.payment-proof.store', $order->order_number), [
-            'payment_proof' => UploadedFile::fake()->image('pertama.jpg'),
-        ]);
-        $firstProof = $order->fresh()->payment_proof;
-
-        $this->actingAs($this->buyer)->post(route('orders.payment-proof.store', $order->order_number), [
-            'payment_proof' => UploadedFile::fake()->image('kedua.png'),
-        ]);
-
-        Storage::disk('local')->assertMissing($firstProof);
-        Storage::disk('local')->assertExists($order->fresh()->payment_proof);
-    }
-
-    public function test_payment_proof_must_be_an_image_of_at_most_two_megabytes(): void
-    {
-        Storage::fake('local');
-        $order = $this->createOrder($this->buyer, paymentStatus: 'unpaid');
-
-        $this->actingAs($this->buyer)
-            ->post(route('orders.payment-proof.store', $order->order_number), [
-                'payment_proof' => UploadedFile::fake()->create('bukti.pdf', 100, 'application/pdf'),
-            ])
-            ->assertSessionHasErrors(['payment_proof' => 'Bukti transfer harus berupa gambar.']);
-        $this->actingAs($this->buyer)
-            ->post(route('orders.payment-proof.store', $order->order_number), [
-                'payment_proof' => UploadedFile::fake()->image('bukti.jpg')->size(2049),
-            ])
-            ->assertSessionHasErrors(['payment_proof' => 'Ukuran bukti transfer maksimal 2 MB.']);
-
-        $this->assertSame('unpaid', $order->fresh()->payment_status);
-        $this->assertEmpty(Storage::disk('local')->allFiles());
-    }
-
-    #[TestWith(['cancelled', 'unpaid', 'Pesanan ini sudah selesai atau dibatalkan, bukti transfer tidak dapat diunggah.'])]
-    #[TestWith(['pending', 'paid', 'Pembayaran pesanan ini sudah diverifikasi.'])]
-    public function test_proof_cannot_be_uploaded_for_a_closed_or_already_paid_order(string $status, string $paymentStatus, string $message): void
-    {
-        Storage::fake('local');
-        $order = $this->createOrder($this->buyer, $status, $paymentStatus);
-
-        $this->actingAs($this->buyer)
-            ->post(route('orders.payment-proof.store', $order->order_number), [
-                'payment_proof' => UploadedFile::fake()->image('bukti.jpg'),
-            ])
-            ->assertSessionHasErrors(['payment_proof' => $message]);
-
-        $this->assertSame($paymentStatus, $order->fresh()->payment_status);
-        $this->assertEmpty(Storage::disk('local')->allFiles());
-    }
-
-    public function test_only_the_buyer_can_upload_a_proof_for_an_order(): void
-    {
-        Storage::fake('local');
-        $order = $this->createOrder($this->buyer, paymentStatus: 'unpaid');
-
-        $this->actingAs($this->seller)
-            ->post(route('orders.payment-proof.store', $order->order_number), [
-                'payment_proof' => UploadedFile::fake()->image('bukti.jpg'),
-            ])
-            ->assertNotFound();
-
-        $this->assertSame('unpaid', $order->fresh()->payment_status);
-    }
-
     public function test_payment_proof_is_visible_only_to_the_buyer_and_the_store_owner(): void
     {
         Storage::fake('local');
-        $order = $this->createOrder($this->buyer, paymentStatus: 'unpaid');
-        $this->actingAs($this->buyer)->post(route('orders.payment-proof.store', $order->order_number), [
-            'payment_proof' => UploadedFile::fake()->image('bukti.jpg'),
-        ]);
+        $order = $this->createOrder($this->buyer, paymentStatus: 'pending_verification');
+        $legacyProofPath = 'payment-proofs/bukti-lama.jpg';
+        Storage::disk('local')->put($legacyProofPath, 'legacy proof');
+        $order->update(['payment_proof' => $legacyProofPath]);
 
         $this->actingAs($this->buyer)->get(route('orders.payment-proof.show', $order->order_number))->assertOk();
         $this->actingAs($this->seller)->get(route('orders.payment-proof.show', $order->order_number))->assertOk();

@@ -113,7 +113,7 @@ function OrderCard({ order }) {
             </div>
             {order.payment_status === 'unpaid' && order.status === 'pending' && (
                 <p className="border-b border-amber-100 bg-amber-50 px-5 py-2 text-[11px] font-semibold text-amber-800">
-                    Transfer lalu unggah bukti pembayaran di detail pesanan agar penjual bisa memproses pesananmu.
+                    Transfer sesuai rincian pesanan. Penjual akan mengonfirmasi pembayaran setelah dana diterima.
                 </p>
             )}
 

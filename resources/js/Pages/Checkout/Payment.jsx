@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
-import { QrCode, Copy, CheckCircle2, ArrowRight, Clock, MapPin, Calendar, Truck, XCircle, Store, Sparkles } from 'lucide-react';
+import { QrCode, Copy, CheckCircle2, MapPin, Calendar, Truck, XCircle, Store, Sparkles } from 'lucide-react';
 
 const formatIDR = (val) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val) || 0);
@@ -18,7 +18,6 @@ export default function Payment({
     candleCost = 0,
     total = 0,
     paymentAccounts = {},
-    paymentWindowHours = 24,
 }) {
     const methodKeys = Object.keys(paymentAccounts);
     const [selectedMethod, setSelectedMethod] = useState(methodKeys[0] ?? '');
@@ -70,10 +69,6 @@ export default function Payment({
                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-crimson-800 text-sm font-bold text-white shadow-md ring-4 ring-crimson-100">2</div>
                             <span className="mt-2 text-xs font-bold text-crimson-800">Pembayaran</span>
                         </div>
-                        <div className="relative z-10 flex flex-col items-center">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-sm font-bold text-gray-400">3</div>
-                            <span className="mt-2 text-xs font-semibold text-gray-400">Unggah Bukti</span>
-                        </div>
                     </div>
                 </div>
 
@@ -84,8 +79,7 @@ export default function Payment({
                             <div>
                                 <h2 className="text-2xl font-extrabold text-gray-900">Pilih Tujuan Transfer</h2>
                                 <p className="mt-1 text-xs text-gray-500">
-                                    Pembayaran dilakukan dengan transfer manual. Setelah pesanan dibuat, transfer lalu unggah bukti transfer;
-                                    penjual memverifikasinya sebelum kue mulai dibuat.
+                                    Selesaikan transfer ke rekening tujuan di bawah, lalu konfirmasikan pembayaran saat membuat pesanan.
                                 </p>
                             </div>
 
@@ -159,19 +153,11 @@ export default function Payment({
                                         <span className="text-xl font-extrabold text-crimson-800">{formatIDR(total)}</span>
                                         {storeCount > 1 && (
                                             <p className="mt-1 text-[11px] text-gray-500">
-                                                Pesanan dipisah menjadi {storeCount} pesanan per toko. Unggah bukti transfer di setiap pesanan
-                                                (boleh satu kali transfer untuk total di atas).
+                                                Pesanan dipisah menjadi {storeCount} pesanan per toko. Rincian transfer dan nominal tiap pesanan tersedia
+                                                setelah checkout.
                                             </p>
                                         )}
                                     </div>
-
-                                    <p className="flex items-start gap-2 pt-1 text-[11px] text-gray-500">
-                                        <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
-                                        <span>
-                                            Unggah bukti transfer paling lambat {paymentWindowHours} jam setelah pesanan dibuat. Pesanan yang belum
-                                            dibayar setelah batas waktu dibatalkan otomatis.
-                                        </span>
-                                    </p>
                                 </div>
                             )}
 
@@ -186,8 +172,7 @@ export default function Payment({
                                 onClick={handleCreateOrder}
                                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-6 py-4 text-sm font-extrabold text-crimson-950 shadow-xl shadow-amber-900/20 transition hover:bg-amber-500 disabled:opacity-50"
                             >
-                                <span>{processing ? 'Membuat Pesanan...' : 'Buat Pesanan & Lanjut Bayar'}</span>
-                                <ArrowRight className="h-4 w-4" />
+                                <span>{processing ? 'Membuat Pesanan...' : 'Saya Sudah Membayar & Buat Pesanan'}</span>
                             </button>
                             <button
                                 type="button"

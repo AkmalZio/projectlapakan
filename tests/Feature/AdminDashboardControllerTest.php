@@ -10,8 +10,6 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
@@ -262,7 +260,9 @@ class AdminDashboardControllerTest extends TestCase
                     'customizations' => [$store->id => ['candles_count' => 0, 'cake_text' => null]],
                 ],
             ])
-            ->post(route('checkout.process'), ['payment_method' => 'qris']);
+            ->post(route('checkout.process'), [
+                'payment_method' => 'qris',
+            ]);
         $order = Order::sole();
 
         $this->actingAs($merchant)
@@ -274,29 +274,20 @@ class AdminDashboardControllerTest extends TestCase
                 ->where('orders.data.0.user.name', $buyer->name)
                 ->where('orders.data.0.delivery_date', $deliveryDate)
                 ->where('orders.data.0.items.0.quantity', 2)
-                ->where('orders.data.0.payment_status', 'unpaid')
+                ->where('orders.data.0.payment_status', 'paid')
             );
         $this->actingAs($otherMerchant)
             ->get(route('admin.dashboard'))
             ->assertInertia(fn ($page) => $page->where('orders.total', 0)->where('stats.new_orders', 0));
 
-        Storage::fake('local');
-        $this->actingAs($buyer)
-            ->post(route('orders.payment-proof.store', $order->order_number), [
-                'payment_proof' => UploadedFile::fake()->image('bukti.jpg'),
-            ])
-            ->assertSessionHasNoErrors();
         $this->actingAs($merchant)
             ->get(route('admin.dashboard'))
             ->assertInertia(fn ($page) => $page
-                ->where('stats.awaiting_payment_verification', 1)
-                ->where('orders.data.0.payment_status', 'pending_verification')
-                ->where('orders.data.0.has_payment_proof', true)
+                ->where('stats.awaiting_payment_confirmation', 0)
+                ->where('orders.data.0.payment_status', 'paid')
+                ->where('orders.data.0.has_payment_proof', false)
                 ->missing('orders.data.0.payment_proof')
             );
-        $this->actingAs($merchant)
-            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
-            ->assertSessionHasNoErrors();
 
         $this->actingAs($merchant)
             ->from(route('admin.dashboard'))
@@ -320,14 +311,14 @@ class AdminDashboardControllerTest extends TestCase
 
     #[TestWith(['unpaid'])]
     #[TestWith(['pending_verification'])]
-    public function test_seller_cannot_process_an_order_before_its_payment_is_verified(string $paymentStatus): void
+    public function test_seller_cannot_process_an_order_before_its_payment_is_confirmed(string $paymentStatus): void
     {
         $merchant = User::factory()->create(['role' => 'merchant']);
         $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-UNPAID-001', paymentStatus: $paymentStatus);
 
         $this->actingAs($merchant)
             ->patch(route('admin.orders.update-status', $order), ['status' => 'confirmed'])
-            ->assertSessionHasErrors(['status' => 'Pesanan belum lunas. Verifikasi bukti transfer pembeli terlebih dahulu sebelum memproses pesanan.']);
+            ->assertSessionHasErrors(['status' => 'Pesanan belum lunas. Konfirmasikan pembayaran terlebih dahulu sebelum memproses pesanan.']);
 
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'pending']);
     }
@@ -344,65 +335,60 @@ class AdminDashboardControllerTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'unpaid']);
     }
 
-    public function test_seller_can_approve_a_transfer_proof(): void
+    #[TestWith(['unpaid'])]
+    #[TestWith(['pending_verification'])]
+    public function test_seller_can_manually_confirm_a_transfer(string $paymentStatus): void
     {
         $merchant = User::factory()->create(['role' => 'merchant']);
-        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-001', paymentStatus: 'pending_verification');
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-001', paymentStatus: $paymentStatus);
         $this->freezeTime();
 
         $this->actingAs($merchant)
-            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
-            ->assertSessionHas('success', 'Pembayaran pesanan INV-PROOF-001 diterima. Pesanan siap diproses.');
+            ->patch(route('admin.orders.mark-paid', $order))
+            ->assertSessionHas('success', 'Pembayaran pesanan INV-PROOF-001 dikonfirmasi. Pesanan siap diproses.');
 
         $order->refresh();
         $this->assertSame('paid', $order->payment_status);
         $this->assertSame(now()->toDateTimeString(), $order->paid_at->toDateTimeString());
+        $this->assertNull($order->payment_proof);
     }
 
-    public function test_seller_rejects_a_transfer_proof_with_a_reason_and_the_buyer_gets_a_new_deadline(): void
+    public function test_seller_cannot_confirm_a_payment_twice(): void
     {
         $merchant = User::factory()->create(['role' => 'merchant']);
-        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-002', paymentStatus: 'pending_verification');
-        $this->freezeTime();
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-002', paymentStatus: 'paid');
 
         $this->actingAs($merchant)
-            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'reject'])
-            ->assertSessionHasErrors(['reason' => 'Tuliskan alasan penolakan agar pembeli tahu apa yang harus diperbaiki.']);
-        $this->assertSame('pending_verification', $order->fresh()->payment_status);
+            ->patch(route('admin.orders.mark-paid', $order))
+            ->assertSessionHasErrors(['payment' => 'Pembayaran pesanan ini sudah dikonfirmasi atau pesanan tidak dapat diubah.']);
 
-        $this->actingAs($merchant)
-            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'reject', 'reason' => 'Nominal transfer kurang.'])
-            ->assertSessionHasNoErrors();
-
-        $order->refresh();
-        $this->assertSame('unpaid', $order->payment_status);
-        $this->assertSame('Nominal transfer kurang.', $order->payment_rejection_reason);
-        $this->assertSame(now()->addHours(24)->toDateTimeString(), $order->payment_due_at->toDateTimeString());
+        $this->assertSame('paid', $order->fresh()->payment_status);
     }
 
-    public function test_seller_cannot_verify_a_payment_without_an_uploaded_proof(): void
-    {
-        $merchant = User::factory()->create(['role' => 'merchant']);
-        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-003', paymentStatus: 'unpaid');
-
-        $this->actingAs($merchant)
-            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
-            ->assertSessionHasErrors(['decision' => 'Tidak ada bukti transfer yang menunggu verifikasi pada pesanan ini.']);
-
-        $this->assertSame('unpaid', $order->fresh()->payment_status);
-    }
-
-    public function test_seller_cannot_verify_the_payment_of_another_store_order(): void
+    public function test_seller_cannot_confirm_the_payment_of_another_store_order(): void
     {
         $merchant = User::factory()->create(['role' => 'merchant']);
         $this->createStore($merchant, 'Toko Merchant');
         $order = $this->createOrder($this->createStore(User::factory()->create(['role' => 'merchant']), 'Toko Lain'), User::factory()->create(), 'INV-PROOF-004', paymentStatus: 'pending_verification');
 
         $this->actingAs($merchant)
-            ->patch(route('admin.orders.verify-payment', $order), ['decision' => 'approve'])
+            ->patch(route('admin.orders.mark-paid', $order))
             ->assertNotFound();
 
         $this->assertSame('pending_verification', $order->fresh()->payment_status);
+    }
+
+    public function test_customers_cannot_manually_confirm_a_payment(): void
+    {
+        $merchant = User::factory()->create(['role' => 'merchant']);
+        $order = $this->createOrder($this->createStore($merchant, 'Toko Merchant'), User::factory()->create(), 'INV-PROOF-005', paymentStatus: 'unpaid');
+        $customer = User::factory()->create(['role' => 'customer']);
+
+        $this->actingAs($customer)
+            ->patch(route('admin.orders.mark-paid', $order))
+            ->assertForbidden();
+
+        $this->assertSame('unpaid', $order->fresh()->payment_status);
     }
 
     public function test_customers_cannot_access_admin_order_management(): void

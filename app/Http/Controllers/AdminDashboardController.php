@@ -56,8 +56,8 @@ class AdminDashboardController extends Controller
                 'total_stock' => (int) $store->products()->sum('stock'),
                 'total_orders' => (clone $orderScope)->count(),
                 'new_orders' => (clone $orderScope)->where('status', 'pending')->count(),
-                'awaiting_payment_verification' => (clone $orderScope)
-                    ->where('payment_status', 'pending_verification')
+                'awaiting_payment_confirmation' => (clone $orderScope)
+                    ->whereIn('payment_status', ['unpaid', 'pending_verification'])
                     ->where('status', '!=', 'cancelled')
                     ->count(),
                 'processing_orders' => (clone $orderScope)
@@ -72,7 +72,7 @@ class AdminDashboardController extends Controller
      * Move one of the seller's orders to another status.
      *
      * Completed and cancelled orders are final, and an order cannot move past "pending" until
-     * its payment is verified. Cancelling returns the purchased stock (see Order::cancel()).
+     * its payment is confirmed. Cancelling returns the purchased stock (see Order::cancel()).
      */
     public function updateOrderStatus(Request $request, Order $order): RedirectResponse
     {
@@ -93,7 +93,7 @@ class AdminDashboardController extends Controller
 
             if (! $lockedOrder->isPaid() && ! in_array($validated['status'], Order::STATUSES_ALLOWED_BEFORE_PAYMENT, true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Pesanan belum lunas. Verifikasi bukti transfer pembeli terlebih dahulu sebelum memproses pesanan.',
+                    'status' => 'Pesanan belum lunas. Konfirmasikan pembayaran terlebih dahulu sebelum memproses pesanan.',
                 ]);
             }
 
@@ -110,48 +110,32 @@ class AdminDashboardController extends Controller
     }
 
     /**
-     * Accept or reject the transfer proof uploaded by the buyer.
-     * A rejected payment goes back to "unpaid" with a fresh deadline so the buyer can upload again.
+     * Mark an unpaid order as paid after the seller confirms the transfer was received.
      */
-    public function verifyPayment(Request $request, Order $order): RedirectResponse
+    public function markPaymentReceived(Request $request, Order $order): RedirectResponse
     {
         $this->ensureOrderBelongsToSeller($request, $order);
 
-        $validated = $request->validate([
-            'decision' => ['required', 'string', Rule::in(['approve', 'reject'])],
-            'reason' => ['nullable', 'required_if:decision,reject', 'string', 'max:255'],
-        ], [
-            'decision.required' => 'Pilih terima atau tolak pembayaran.',
-            'decision.in' => 'Pilihan verifikasi tidak valid.',
-            'reason.required_if' => 'Tuliskan alasan penolakan agar pembeli tahu apa yang harus diperbaiki.',
-            'reason.max' => 'Alasan penolakan maksimal 255 karakter.',
-        ]);
-
-        DB::transaction(function () use ($order, $validated): void {
+        DB::transaction(function () use ($order): void {
             $lockedOrder = Order::lockForUpdate()->findOrFail($order->id);
 
-            if ($lockedOrder->hasFinalStatus() || $lockedOrder->payment_status !== 'pending_verification') {
+            if (
+                $lockedOrder->hasFinalStatus()
+                || ! in_array($lockedOrder->payment_status, ['unpaid', 'pending_verification'], true)
+            ) {
                 throw ValidationException::withMessages([
-                    'decision' => 'Tidak ada bukti transfer yang menunggu verifikasi pada pesanan ini.',
+                    'payment' => 'Pembayaran pesanan ini sudah dikonfirmasi atau pesanan tidak dapat diubah.',
                 ]);
             }
 
-            $lockedOrder->update($validated['decision'] === 'approve'
-                ? [
-                    'payment_status' => 'paid',
-                    'paid_at' => now(),
-                    'payment_rejection_reason' => null,
-                ]
-                : [
-                    'payment_status' => 'unpaid',
-                    'payment_rejection_reason' => $validated['reason'],
-                    'payment_due_at' => now()->addHours(Order::PAYMENT_WINDOW_HOURS),
-                ]);
+            $lockedOrder->update([
+                'payment_status' => 'paid',
+                'paid_at' => now(),
+                'payment_rejection_reason' => null,
+            ]);
         });
 
-        return redirect()->back()->with('success', $validated['decision'] === 'approve'
-            ? 'Pembayaran pesanan '.$order->order_number.' diterima. Pesanan siap diproses.'
-            : 'Bukti transfer pesanan '.$order->order_number.' ditolak. Pembeli diminta mengunggah ulang.');
+        return redirect()->back()->with('success', 'Pembayaran pesanan '.$order->order_number.' dikonfirmasi. Pesanan siap diproses.');
     }
 
     private function ensureOrderBelongsToSeller(Request $request, Order $order): Store

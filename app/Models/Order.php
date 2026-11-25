@@ -27,23 +27,22 @@ class Order extends Model
     public const FINAL_STATUSES = ['completed', 'cancelled'];
 
     /**
-     * Statuses a seller may set while the payment has not been verified yet.
+     * Statuses a seller may set while the payment has not been confirmed yet.
      *
      * @var list<string>
      */
     public const STATUSES_ALLOWED_BEFORE_PAYMENT = ['pending', 'cancelled'];
 
     /**
-     * Payment statuses of the manual bank-transfer flow:
-     * unpaid -> pending_verification (proof uploaded) -> paid (verified) or back to unpaid (rejected).
-     * A cancelled order that had money involved becomes refunded.
+     * Payment statuses. New checkout orders are marked paid after the buyer confirms payment;
+     * unpaid and pending_verification remain for orders from the previous manual payment flow.
      *
      * @var list<string>
      */
     public const PAYMENT_STATUSES = ['unpaid', 'pending_verification', 'paid', 'refunded'];
 
     /**
-     * Hours the buyer has to upload a transfer proof before an unpaid order is cancelled automatically.
+     * Hours allowed for legacy unpaid orders before automatic cancellation.
      */
     public const PAYMENT_WINDOW_HOURS = 24;
 
@@ -114,15 +113,6 @@ class Order extends Model
     public function isPaid(): bool
     {
         return $this->payment_status === 'paid';
-    }
-
-    /**
-     * Whether the buyer may (re)upload a transfer proof for this order.
-     */
-    public function acceptsPaymentProof(): bool
-    {
-        return ! $this->hasFinalStatus()
-            && in_array($this->payment_status, ['unpaid', 'pending_verification'], true);
     }
 
     /**

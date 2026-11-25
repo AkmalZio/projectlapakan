@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-    --lapakan-bg: #f3ecdc;
-    --lapakan-panel: #ebe1c8;
-    --lapakan-panel-strong: #f6f1e7;
+    --lapakan-bg: #fff8fa;
+    --lapakan-panel: #ffffff;
+    --lapakan-panel-strong: #fffdfd;
     --lapakan-header: #7e103c;
     --lapakan-header-strong: #3f0a1d;
     --lapakan-accent: #c73362;
     --lapakan-accent-soft: #f7dfe7;
-    --lapakan-border: rgba(79, 32, 45, 0.18);
+    --lapakan-border: rgba(74, 7, 28, 0.12);
     --lapakan-shadow: rgba(18, 10, 15, 0.18);
 }
 
@@ -56,7 +56,7 @@
         min-height: calc(100vh - 5rem);
         margin-inline: auto;
         padding: 2rem 1rem;
-        background: #fffaf7;
+        background: #ffffff;
         box-shadow: 0 8px 32px rgba(74, 7, 28, 0.08);
     }
 

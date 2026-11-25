@@ -94,7 +94,7 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                 </div>
             </section>
 
-            <section className="py-10 bg-white border-b border-[#EBE3D3]">
+            <section className="py-10 bg-white border-b border-[#f0dfe5]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                         <div className="flex items-center gap-3.5 p-3">
@@ -137,7 +137,7 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                 </div>
             </section>
 
-            <section className="py-12 bg-[#FAF6EE] sm:py-14">
+            <section className="py-12 bg-[#fff8fa] sm:py-14">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                         <div>
@@ -159,9 +159,9 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                                 <Link
                                     key={category.id}
                                     href={route('catalog', { category: category.slug })}
-                                    className="group overflow-hidden rounded-2xl border border-[#EBE3D3] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-crimson-700 focus:ring-offset-2"
+                                    className="group overflow-hidden rounded-2xl border border-[#f0dfe5] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-crimson-700 focus:ring-offset-2"
                                 >
-                                    <div className="relative h-48 overflow-hidden bg-[#efe6d9] sm:h-52">
+                                    <div className="relative h-48 overflow-hidden bg-[#f8edf0] sm:h-52">
                                         <ImageWithFallback
                                             src={categoryImages[category.slug] || categoryImages['all-category']}
                                             alt={category.name}
@@ -185,14 +185,14 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                             ))}
                         </div>
                     ) : (
-                        <p className="rounded-2xl border border-dashed border-[#d9c9b8] bg-white px-5 py-8 text-center text-sm text-gray-600">
+                        <p className="rounded-2xl border border-dashed border-[#e7cbd4] bg-white px-5 py-8 text-center text-sm text-gray-600">
                             Kategori akan segera tersedia.
                         </p>
                     )}
                 </div>
             </section>
 
-            <section className="py-16 bg-white border-t border-[#EBE3D3]">
+            <section className="py-16 bg-white border-t border-[#f0dfe5]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center max-w-2xl mx-auto mb-12">
                         <span className="text-xs font-bold uppercase tracking-wider text-crimson-700">Menu Rekomendasi</span>
@@ -222,7 +222,7 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                 </div>
             </section>
 
-            <section className="py-16 bg-[#FAF6EE]">
+            <section className="py-16 bg-[#fff8fa]">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="rounded-3xl bg-gradient-to-r from-crimson-900 to-crimson-800 text-white p-8 sm:p-12 lg:p-16 relative overflow-hidden shadow-2xl">
                         <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none transform translate-x-10 translate-y-10">
@@ -239,17 +239,6 @@ export default function Home({ categories = [], featuredProducts = [] }) {
                             <p className="text-pink-100/90 text-sm sm:text-base leading-relaxed">
                                 Konsultasikan desain kue impian, tulisan ucapan khusus, atau request rasa spesial langsung dengan baker kami.
                             </p>
-                            <div className="pt-2 flex flex-wrap gap-4">
-                                <a
-                                    href="https://wa.me/6281298765432?text=Halo%20LAPAKan,%20saya%20ingin%20konsultasi%20kue%20custom"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-white text-crimson-900 hover:bg-pink-100 font-extrabold text-sm shadow-md transition hover:scale-105 active:scale-95"
-                                >
-                                    <span>Hubungi Baker via WhatsApp</span>
-                                    <ArrowRight className="w-4 h-4 text-crimson-700" />
-                                </a>
-                            </div>
                         </div>
                     </div>
                 </div>

@@ -263,13 +263,11 @@ class CheckoutController extends Controller
             'candleCost' => $summary['candle_cost'],
             'total' => $summary['total'],
             'paymentAccounts' => config('lapakan.payment_accounts'),
-            'paymentWindowHours' => Order::PAYMENT_WINDOW_HOURS,
         ]);
     }
 
     /**
-     * Create one unpaid order per store and clear the purchased items from the cart.
-     * The buyer then transfers and uploads a proof from the order page.
+     * Create one paid order per store after the buyer confirms payment and clear the purchased items from the cart.
      */
     public function process(Request $request): RedirectResponse
     {
@@ -304,6 +302,7 @@ class CheckoutController extends Controller
             $this->ensureCartIsPurchasable($cart, $products, $variants, $user);
 
             $orderNumbers = [];
+            $paidAt = now();
 
             foreach ($this->summarize($cart, $shipping, $products)['stores'] as $storeSummary) {
                 $orderNumber = $this->generateOrderNumber();
@@ -315,9 +314,10 @@ class CheckoutController extends Controller
                     'total_amount' => $storeSummary['total'],
                     'shipping_cost' => $storeSummary['shipping_cost'],
                     'status' => 'pending',
-                    'payment_status' => 'unpaid',
+                    'payment_status' => 'paid',
                     'payment_method' => strtoupper($validated['payment_method']),
-                    'payment_due_at' => now()->addHours(Order::PAYMENT_WINDOW_HOURS),
+                    'paid_at' => $paidAt,
+                    'payment_due_at' => null,
                     'delivery_type' => 'delivery',
                     'delivery_courier' => $courier['name'],
                     'delivery_date' => $shipping['delivery_date'],
@@ -368,7 +368,7 @@ class CheckoutController extends Controller
 
         if (count($orderNumbers) > 1) {
             return redirect()->route('orders.index')
-                ->with('success', 'Pesanan dibuat dan dipisah menjadi '.count($orderNumbers).' pesanan sesuai toko penjual. Transfer lalu unggah bukti pembayaran di detail setiap pesanan.');
+                ->with('success', 'Pembayaran tercatat dan pesanan dibuat menjadi '.count($orderNumbers).' pesanan sesuai toko penjual. Pantau status pesananmu di halaman ini.');
         }
 
         return redirect()->route('orders.success', ['orderNumber' => $orderNumbers[0]]);
@@ -557,7 +557,7 @@ class CheckoutController extends Controller
     }
 
     /**
-     * Display the order-created page with transfer instructions. Only the buyer who placed the order may see it.
+     * Display the order-created page. Only the buyer who placed the order may see it.
      */
     public function success(Request $request, string $orderNumber): Response
     {
@@ -572,7 +572,6 @@ class CheckoutController extends Controller
 
         return Inertia::render('Checkout/Success', [
             'order' => $order,
-            'paymentAccounts' => config('lapakan.payment_accounts'),
         ]);
     }
 }

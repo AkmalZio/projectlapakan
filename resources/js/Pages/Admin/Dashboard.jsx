@@ -3,7 +3,6 @@ import PaymentStatusBadge from '@/Components/PaymentStatusBadge';
 import SellerCenterLayout from '@/Layouts/SellerCenterLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowRight, CheckCircle2, ClipboardList, FileImage, Loader, Plus, Wallet } from 'lucide-react';
-import { useState } from 'react';
 
 const orderStatusLabels = {
     pending: 'Menunggu',
@@ -39,80 +38,40 @@ function formatDeliveryDate(date) {
     return Number.isNaN(parsedDate.getTime()) ? date : parsedDate.toLocaleDateString('id-ID', { dateStyle: 'medium' });
 }
 
-/**
- * Accept or reject the buyer's transfer proof. A rejection needs a reason the buyer will see.
- */
-function PaymentVerification({ order }) {
-    const form = useForm({ decision: 'approve', reason: '' });
-    const [isRejecting, setIsRejecting] = useState(false);
+function PaymentConfirmation({ order }) {
+    const form = useForm({});
 
-    const submit = (decision) => {
-        form.transform((data) => ({ ...data, decision }));
-        form.patch(route('admin.orders.verify-payment', { order: order.id }), { preserveScroll: true });
+    const markAsPaid = () => {
+        if (!window.confirm(`Konfirmasi bahwa transfer untuk pesanan ${order.order_number} sudah diterima?`)) {
+            return;
+        }
+
+        form.patch(route('admin.orders.mark-paid', { order: order.id }), { preserveScroll: true });
     };
 
     return (
-        <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50 p-2.5">
-            <p className="font-semibold text-sky-900">Bukti transfer menunggu verifikasi</p>
-            <a
-                href={route('orders.payment-proof.show', order.order_number)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-semibold text-crimson-800 hover:underline"
+        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+            <p className="font-semibold text-amber-900">Konfirmasi pembayaran secara manual setelah transfer diterima.</p>
+            {order.has_payment_proof && order.payment_status === 'pending_verification' && (
+                <a
+                    href={route('orders.payment-proof.show', order.order_number)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-crimson-800 hover:underline"
+                >
+                    <FileImage aria-hidden="true" className="h-3.5 w-3.5" />
+                    Lihat bukti transfer lama ({formatCurrency(order.total_amount)})
+                </a>
+            )}
+            <button
+                type="button"
+                disabled={form.processing}
+                onClick={markAsPaid}
+                className="rounded-lg bg-emerald-700 px-3 py-1.5 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
             >
-                <FileImage aria-hidden="true" className="h-3.5 w-3.5" />
-                Lihat bukti transfer ({formatCurrency(order.total_amount)})
-            </a>
-            {isRejecting ? (
-                <div className="space-y-2">
-                    <label htmlFor={`reject-reason-${order.id}`} className="sr-only">
-                        Alasan penolakan
-                    </label>
-                    <textarea
-                        id={`reject-reason-${order.id}`}
-                        rows={2}
-                        maxLength={255}
-                        value={form.data.reason}
-                        onChange={(event) => form.setData('reason', event.target.value)}
-                        placeholder="Contoh: nominal transfer kurang Rp5.000"
-                        className="w-full rounded-lg border-gray-300 text-xs focus:border-crimson-700 focus:ring-crimson-700"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            disabled={form.processing}
-                            onClick={() => submit('reject')}
-                            className="rounded-lg bg-red-700 px-3 py-1.5 font-semibold text-white hover:bg-red-800 disabled:opacity-50"
-                        >
-                            Tolak pembayaran
-                        </button>
-                        <button type="button" onClick={() => setIsRejecting(false)} className="rounded-lg px-3 py-1.5 font-semibold text-gray-600 hover:bg-white">
-                            Batal
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        disabled={form.processing}
-                        onClick={() => submit('approve')}
-                        className="rounded-lg bg-emerald-700 px-3 py-1.5 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
-                    >
-                        Terima pembayaran
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setIsRejecting(true)}
-                        className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50"
-                    >
-                        Tolak
-                    </button>
-                </div>
-            )}
-            {(form.errors.decision || form.errors.reason) && (
-                <p className="text-red-600">{form.errors.decision || form.errors.reason}</p>
-            )}
+                {form.processing ? 'Menyimpan...' : 'Tandai sudah dibayar'}
+            </button>
+            {form.errors.payment && <p className="text-red-600">{form.errors.payment}</p>}
         </div>
     );
 }
@@ -154,10 +113,15 @@ function OrderRow({ order, orderStatuses, statusesAllowedBeforePayment, isPlatfo
                 {isPlatformAdmin && order.store?.name && (
                     <p className="mt-1 text-xs font-medium text-crimson-700">{order.store.name}</p>
                 )}
-                <details className="mt-2" open={order.payment_status === 'pending_verification' && !hasFinalStatus ? true : undefined}>
+                <details
+                    className="mt-2"
+                    open={['unpaid', 'pending_verification'].includes(order.payment_status) && !hasFinalStatus ? true : undefined}
+                >
                     <summary className="cursor-pointer text-xs font-semibold text-crimson-800">Lihat rincian</summary>
                     <div className="mt-3 w-64 max-w-full space-y-3 rounded-xl bg-cream-50 p-3 text-xs text-gray-600">
-                        {order.payment_status === 'pending_verification' && !hasFinalStatus && <PaymentVerification order={order} />}
+                        {['unpaid', 'pending_verification'].includes(order.payment_status) && !hasFinalStatus && (
+                            <PaymentConfirmation order={order} />
+                        )}
                         <div>
                             <p className="font-semibold text-gray-800">Penerima</p>
                             <p className="break-words">
@@ -208,9 +172,6 @@ function OrderRow({ order, orderStatuses, statusesAllowedBeforePayment, isPlatfo
                                 </>
                             )}
                         </p>
-                        {order.payment_rejection_reason && order.payment_status === 'unpaid' && (
-                            <p className="break-words text-red-700">Ditolak: {order.payment_rejection_reason}</p>
-                        )}
                         {order.candles_count > 0 && <p>Lilin: {order.candles_count} buah</p>}
                         {order.delivery_date && (
                             <p>
@@ -321,8 +282,8 @@ export default function Dashboard({
             <section aria-label="Ringkasan pesanan" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard label="Pesanan baru" value={stats.new_orders ?? 0} icon={ClipboardList} tone="bg-amber-50 text-amber-700" />
                 <StatCard
-                    label="Bukti transfer perlu dicek"
-                    value={stats.awaiting_payment_verification ?? 0}
+                    label="Pembayaran perlu dikonfirmasi"
+                    value={stats.awaiting_payment_confirmation ?? 0}
                     icon={Wallet}
                     tone="bg-sky-50 text-sky-700"
                 />

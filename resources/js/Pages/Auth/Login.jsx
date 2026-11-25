@@ -23,32 +23,33 @@ export default function Login({ status, canResetPassword }) {
         <GuestLayout>
             <Head title="Masuk" />
 
-            <div className="space-y-6">
-                <div className="space-y-2">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8b1f3f]">LAPAKan</p>
-                    <h1 className="text-3xl font-black text-[#2d1a1f]">Masuk</h1>
-                    <p className="text-sm text-[#67595d]">Silakan masuk untuk melanjutkan pesanan dan riwayatmu.</p>
+            <div className="space-y-7">
+                <div className="space-y-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#9b2448]">Akun LAPAKan</p>
+                    <h1 className="text-[32px] font-black leading-tight tracking-tight text-[#351b22] sm:text-4xl">Selamat datang</h1>
+                    <p className="text-sm leading-6 text-[#75676a]">Masuk untuk melanjutkan pesanan dan melihat kembali momen favoritmu.</p>
                 </div>
 
                 {status && (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                    <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm font-medium text-emerald-700">
                         {status}
                     </div>
                 )}
 
-                <form onSubmit={submit} className="space-y-5">
+                <form onSubmit={submit} className="space-y-6">
                     <div className="space-y-2">
-                        <label htmlFor="email" className="text-sm font-bold text-[#3a2b2f]">Email</label>
+                        <label htmlFor="email" className="block text-[13px] font-bold text-[#3a2b2f]">Email</label>
                         <div className="relative">
-                            <Mail className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#8b1f3f]" />
+                            <Mail aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9b2448]" />
                             <input
                                 id="email"
                                 type="email"
                                 name="email"
                                 value={data.email}
                                 autoComplete="username"
+                                required
                                 onChange={(e) => setData('email', e.target.value)}
-                                className="w-full rounded-xl border border-[#dbc7a5] bg-white px-10 py-3 text-sm text-[#2a1d20] placeholder:text-[#7f6a70] focus:border-[#8b1f3f] focus:outline-none focus:ring-2 focus:ring-[#8b1f3f]/15"
+                                className="w-full rounded-xl border border-[#e7ded2] bg-[#fffdfa] py-3.5 pl-11 pr-4 text-sm text-[#2a1d20] placeholder:text-[#9b8b8b] transition focus:border-[#9b2448] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#9b2448]/10"
                                 placeholder="nama@email.com"
                             />
                         </div>
@@ -56,24 +57,26 @@ export default function Login({ status, canResetPassword }) {
                     </div>
 
                     <div className="space-y-2">
-                        <label htmlFor="password" className="text-sm font-bold text-[#3a2b2f]">Password</label>
+                        <label htmlFor="password" className="block text-[13px] font-bold text-[#3a2b2f]">Password</label>
                         <div className="relative">
-                            <LockKeyhole className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-[#8b1f3f]" />
+                            <LockKeyhole aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9b2448]" />
                             <input
                                 id="password"
                                 type={showPassword ? 'text' : 'password'}
                                 name="password"
                                 value={data.password}
                                 autoComplete="current-password"
+                                required
                                 onChange={(e) => setData('password', e.target.value)}
-                                className="w-full rounded-xl border border-[#dbc7a5] bg-white px-10 py-3 text-sm text-[#2a1d20] placeholder:text-[#7f6a70] focus:border-[#8b1f3f] focus:outline-none focus:ring-2 focus:ring-[#8b1f3f]/15"
+                                className="w-full rounded-xl border border-[#e7ded2] bg-[#fffdfa] py-3.5 pl-11 pr-11 text-sm text-[#2a1d20] placeholder:text-[#9b8b8b] transition focus:border-[#9b2448] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#9b2448]/10"
                                 placeholder="Masukkan password"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPassword((prev) => !prev)}
-                                className="absolute right-3 top-3.5 text-[#7a5b62] transition hover:text-[#8b1f3f]"
-                                aria-label="Tampilkan password"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#7a5b62] transition hover:text-[#8b1f3f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1f3f]/30"
+                                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                                aria-pressed={showPassword}
                             >
                                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
@@ -81,20 +84,20 @@ export default function Login({ status, canResetPassword }) {
                         {errors.password && <p className="text-xs text-red-600">{errors.password}</p>}
                     </div>
 
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <label className="inline-flex items-center gap-2 text-sm text-[#5f4a50]">
+                    <div className="flex items-center justify-between gap-3">
+                        <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm text-[#67595d]">
                             <input
                                 type="checkbox"
                                 name="remember"
                                 checked={data.remember}
                                 onChange={(e) => setData('remember', e.target.checked)}
-                                className="h-4 w-4 rounded border-[#c9b07d] text-[#8b1f3f] focus:ring-[#8b1f3f]"
+                                className="h-4 w-4 rounded border-[#d7c8b7] text-[#8b1f3f] focus:ring-[#8b1f3f]/30"
                             />
                             Ingat saya
                         </label>
 
                         {canResetPassword && (
-                            <Link href={route('password.request')} className="text-sm font-semibold text-[#8b1f3f] hover:underline">
+                            <Link href={route('password.request')} className="text-sm font-semibold text-[#8b1f3f] hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1f3f]/30">
                                 Lupa password?
                             </Link>
                         )}
@@ -103,15 +106,15 @@ export default function Login({ status, canResetPassword }) {
                     <button
                         type="submit"
                         disabled={processing}
-                        className="w-full rounded-xl bg-[#7d0f2e] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#99183d] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="w-full rounded-xl bg-[#7d0f2e] px-4 py-3.5 text-sm font-bold text-white shadow-[0_8px_18px_rgba(125,15,46,0.16)] transition hover:-translate-y-0.5 hover:bg-[#92183b] hover:shadow-[0_12px_22px_rgba(125,15,46,0.2)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#9b2448]/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                     >
                         {processing ? 'Memproses...' : 'Masuk'}
                     </button>
                 </form>
 
-                <div className="border-t border-[#dccaa5] pt-5 text-center text-sm text-[#5f4a50]">
+                <div className="border-t border-[#eee7de] pt-5 text-center text-sm text-[#75676a]">
                     Belum punya akun?{' '}
-                    <Link href={route('register')} className="font-bold text-[#8b1f3f] hover:underline">
+                    <Link href={route('register')} className="font-bold text-[#8b1f3f] hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1f3f]/30">
                         Daftar sekarang
                     </Link>
                 </div>

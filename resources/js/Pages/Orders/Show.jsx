@@ -1,20 +1,12 @@
 import React, { useState } from 'react';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import MarketplaceLayout from '@/Layouts/MarketplaceLayout';
 import ImageWithFallback from '@/Components/ImageWithFallback';
-import PaymentProofPanel from '@/Components/PaymentProofPanel';
+import PaymentStatusPanel from '@/Components/PaymentStatusPanel';
 import PaymentStatusBadge from '@/Components/PaymentStatusBadge';
-import { CheckCircle2, Clock, Truck, ChefHat, MapPin, Calendar, Phone, Sparkles, ArrowLeft, XCircle, Star } from 'lucide-react';
+import { CheckCircle2, Clock, Truck, ChefHat, MapPin, Calendar, Sparkles, ArrowLeft, XCircle, Star } from 'lucide-react';
 
 const CANDLE_UNIT_PRICE = 3000;
-
-/** Convert a local phone number (08xx / +628xx) to the international digits wa.me expects. */
-const toWhatsAppNumber = (phone, fallback) => {
-    const digits = String(phone || '').replace(/\D/g, '');
-    if (!digits) return fallback;
-
-    return digits.startsWith('0') ? `62${digits.slice(1)}` : digits;
-};
 
 const formatIDR = (val) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val) || 0);
@@ -86,10 +78,8 @@ function ReviewForm({ order, item }) {
 }
 
 export default function Show({ order, isBuyer = true, paymentAccounts = {}, reviewedProductIds = [] }) {
-    const { platform } = usePage().props;
-
     const statusSteps = [
-        { key: 'pending', label: 'Menunggu Konfirmasi', icon: Clock, desc: 'Menunggu pembayaran & konfirmasi penjual' },
+        { key: 'pending', label: 'Menunggu Konfirmasi', icon: Clock, desc: 'Menunggu penjual memverifikasi pembayaran' },
         { key: 'confirmed', label: 'Dikonfirmasi', icon: CheckCircle2, desc: 'Pesanan telah diterima baker' },
         { key: 'baking', label: 'Sedang Dibuat', icon: ChefHat, desc: 'Kue sedang dipanggang & dihias' },
         { key: 'delivering', label: 'Pengiriman', icon: Truck, desc: 'Kue dalam perjalanan ke alamat' },
@@ -99,8 +89,6 @@ export default function Show({ order, isBuyer = true, paymentAccounts = {}, revi
     const isCancelled = order.status === 'cancelled';
     const isCompleted = order.status === 'completed';
     const currentStepIndex = isCancelled ? -1 : Math.max(0, statusSteps.findIndex((step) => step.key === order.status));
-    const whatsAppNumber = toWhatsAppNumber(order.store?.phone, platform?.contact?.whatsapp);
-    const whatsAppText = encodeURIComponent(`Halo ${order.store?.name || 'LAPAKan'}, saya ingin menanyakan status pesanan ${order.order_number}`);
 
     return (
         <MarketplaceLayout>
@@ -128,17 +116,6 @@ export default function Show({ order, isBuyer = true, paymentAccounts = {}, revi
                         )}
                     </div>
 
-                    {isBuyer && whatsAppNumber && (
-                        <a
-                            href={`https://wa.me/${whatsAppNumber}?text=${whatsAppText}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 self-start rounded-full bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 sm:self-center"
-                        >
-                            <Phone className="h-4 w-4" />
-                            <span>Chat WhatsApp Baker</span>
-                        </a>
-                    )}
                 </div>
 
                 {/* STATUS TRACKING BAR */}
@@ -252,7 +229,7 @@ export default function Show({ order, isBuyer = true, paymentAccounts = {}, revi
                     </div>
 
                     <div className="min-w-0 space-y-6 lg:col-span-4">
-                        {isBuyer && <PaymentProofPanel order={order} paymentAccounts={paymentAccounts} />}
+                        {isBuyer && <PaymentStatusPanel order={order} paymentAccounts={paymentAccounts} />}
 
                         {/* Delivery Information */}
                         <div className="space-y-4 rounded-3xl border border-[#EBE3D3] bg-white p-6 shadow-sm">

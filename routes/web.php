@@ -47,7 +47,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/pesanan', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/success/{orderNumber}', [CheckoutController::class, 'success'])->name('orders.success');
     Route::get('/orders/{orderNumber}', [OrderController::class, 'show'])->name('orders.show');
-    Route::post('/orders/{orderNumber}/payment-proof', [OrderController::class, 'uploadPaymentProof'])->name('orders.payment-proof.store');
     Route::get('/orders/{orderNumber}/payment-proof', [OrderController::class, 'showPaymentProof'])->name('orders.payment-proof.show');
     Route::post('/orders/{orderNumber}/reviews', [ReviewController::class, 'store'])->name('orders.reviews.store');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -63,7 +62,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/admin/products/{product}/active', [AdminController::class, 'toggleProductActive'])->name('admin.products.toggle-active');
         Route::delete('/admin/products/{product}', [AdminController::class, 'destroyProduct'])->name('admin.products.destroy');
         Route::patch('/admin/orders/{order}/status', [AdminDashboardController::class, 'updateOrderStatus'])->name('admin.orders.update-status');
-        Route::patch('/admin/orders/{order}/payment', [AdminDashboardController::class, 'verifyPayment'])->name('admin.orders.verify-payment');
+        Route::patch('/admin/orders/{order}/payment', [AdminDashboardController::class, 'markPaymentReceived'])->name('admin.orders.mark-paid');
     });
 });
 
