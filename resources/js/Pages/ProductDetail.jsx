@@ -10,13 +10,26 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
         ? product.gallery
         : [product.image || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=800&auto=format&fit=crop'];
 
-    const [selectedImage, setSelectedImage] = useState(gallery[0]);
-    const [selectedVariant, setSelectedVariant] = useState(product.variants && product.variants.length > 0 ? product.variants[0] : null);
+    const variants = product.variants ?? [];
+    const variantsWithImages = variants.filter((variant) => variant.image);
+    const thumbnails = variantsWithImages.length > 0
+        ? variantsWithImages.map((variant) => ({ image: variant.image, variant }))
+        : gallery.map((image, index) => ({ image, variant: null, index }));
+    const initialVariant = variants[0] ?? null;
+    const [selectedImage, setSelectedImage] = useState(initialVariant?.image || gallery[0]);
+    const [selectedVariant, setSelectedVariant] = useState(initialVariant);
     const [quantity, setQuantity] = useState(1);
 
     const availableStock = Math.max(0, Number(selectedVariant?.stock ?? product.stock ?? 0));
     const isOutOfStock = availableStock === 0;
     const [isFavorited, setIsFavorited] = useState(Boolean(product.is_favorited));
+
+    const selectVariant = (variant) => {
+        setSelectedVariant(variant);
+        setSelectedImage(variant.image || gallery[0]);
+        const variantStock = Math.max(0, Number(variant.stock ?? product.stock ?? 0));
+        setQuantity((currentQuantity) => Math.min(currentQuantity, Math.max(1, variantStock)));
+    };
 
     const ratingAverage = Number(product.reviews_avg_rating ?? 0);
     const reviewCount = Number(product.reviews_count ?? 0);
@@ -84,7 +97,7 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                         <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 relative group">
                             <ImageWithFallback
                                 src={selectedImage}
-                                alt={product.name}
+                                alt={selectedVariant?.image ? `${product.name} - ${selectedVariant.name}` : product.name}
                                 className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                             />
                             {product.is_preorder && (
@@ -96,22 +109,38 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                         </div>
 
                         {/* Thumbnails */}
-                        {gallery.length > 1 && (
+                        {(variantsWithImages.length > 0 || gallery.length > 1) && (
                         <div className="grid grid-cols-4 gap-3">
-                            {gallery.map((img, idx) => (
-                                <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => setSelectedImage(img)}
-                                    className={`aspect-square rounded-xl overflow-hidden border-2 transition ${
-                                        selectedImage === img
-                                            ? 'border-crimson-700 shadow-md ring-2 ring-crimson-700/20'
-                                            : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
-                                    }`}
-                                >
-                                    <ImageWithFallback src={img} alt={`thumbnail-${idx}`} className="w-full h-full object-cover" />
-                                </button>
-                            ))}
+                            {thumbnails.map((thumbnail, idx) => {
+                                const isSelected = thumbnail.variant
+                                    ? selectedVariant?.id === thumbnail.variant.id
+                                    : selectedImage === thumbnail.image;
+
+                                return (
+                                    <button
+                                        key={thumbnail.variant?.id ?? `gallery-${thumbnail.index}`}
+                                        type="button"
+                                        onClick={() => {
+                                            if (thumbnail.variant) {
+                                                selectVariant(thumbnail.variant);
+                                            } else {
+                                                setSelectedImage(thumbnail.image);
+                                            }
+                                        }}
+                                        className={`aspect-square rounded-xl overflow-hidden border-2 transition ${
+                                            isSelected
+                                                ? 'border-crimson-700 shadow-md ring-2 ring-crimson-700/20'
+                                                : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
+                                        }`}
+                                    >
+                                        <ImageWithFallback
+                                            src={thumbnail.image}
+                                            alt={thumbnail.variant ? `Gambar varian ${thumbnail.variant.name}` : `thumbnail-${idx}`}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </button>
+                                );
+                            })}
                         </div>
                         )}
                     </div>
@@ -176,12 +205,12 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                                     Pilih Varian / Ukuran
                                 </h4>
                                 <div className="flex flex-wrap gap-2.5">
-                                    {product.variants.map((v) => (
+                                    {variants.map((v) => (
                                         <button
                                             key={v.id}
                                             type="button"
-                                            onClick={() => setSelectedVariant(v)}
-                                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition flex items-center gap-2 ${
+                                            onClick={() => selectVariant(v)}
+                                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-2 ${
                                                 selectedVariant?.id === v.id
                                                     ? 'border-crimson-800 bg-crimson-800 text-white shadow-sm'
                                                     : 'border-gray-200 bg-white text-gray-700 hover:border-crimson-600'
@@ -230,7 +259,14 @@ export default function ProductDetail({ product, relatedProducts = [] }) {
                             </div>
 
                             {/* Buttons */}
-                            {product.is_own_product ? (
+                            {product.is_platform_admin ? (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                                    Akun admin tidak dapat membeli produk dari halaman ini.{' '}
+                                    <Link href={route('admin.products.edit', product.id)} className="font-bold underline">
+                                        Kelola produk
+                                    </Link>
+                                </div>
+                            ) : product.is_own_product ? (
                                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
                                     Ini produk dari tokomu sendiri, jadi tidak bisa dibeli dari akun ini.{' '}
                                     <Link href={route('admin.products.edit', product.id)} className="font-bold underline">

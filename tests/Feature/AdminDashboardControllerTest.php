@@ -189,7 +189,7 @@ class AdminDashboardControllerTest extends TestCase
     {
         $merchant = User::factory()->create(['role' => 'merchant']);
         $store = $this->createStore($merchant, 'Toko Merchant');
-        $product = $this->createProduct($store, stock: 4);
+        $product = $this->createProduct($store, stock: 0);
         $variant = ProductVariant::create(['product_id' => $product->id, 'type' => 'size', 'name' => '20 cm', 'stock' => 1]);
         $order = $this->createOrder($store, User::factory()->create(), 'INV-CANCEL-001', 'confirmed');
         OrderItem::create([
@@ -208,7 +208,7 @@ class AdminDashboardControllerTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('orders', ['id' => $order->id, 'status' => 'cancelled', 'payment_status' => 'refunded']);
-        $this->assertSame(6, $product->fresh()->stock);
+        $this->assertSame(0, $product->fresh()->stock);
         $this->assertSame(3, $variant->fresh()->stock);
     }
 

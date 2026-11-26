@@ -4,6 +4,11 @@ import { Link } from '@inertiajs/react';
 import { Sparkles, Clock, ArrowRight } from 'lucide-react';
 
 export default function ProductCard({ product }) {
+    const variants = product.variants ?? [];
+    const isOutOfStock = variants.length > 0
+        ? variants.every((variant) => Number(variant.stock ?? 0) <= 0)
+        : Number(product.stock) <= 0;
+
     // Format IDR currency
     const formatIDR = (val) => {
         return new Intl.NumberFormat('id-ID', {
@@ -31,7 +36,7 @@ export default function ProductCard({ product }) {
                             <Clock className="w-3 h-3" />
                             PO H-{product.preorder_days || 1}
                         </span>
-                    ) : Number(product.stock) <= 0 ? (
+                    ) : isOutOfStock ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gray-700/90 backdrop-blur-sm text-white shadow-sm">
                             Stok Habis
                         </span>

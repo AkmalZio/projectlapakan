@@ -69,7 +69,7 @@ class CartController extends Controller
         $cartKey = $product->id.'_'.($variant ? $variant->id : '0');
         $cart = $request->session()->get('cart', []);
         $requestedQuantity = (int) $validated['quantity'] + ($isBuyNow ? 0 : (int) ($cart[$cartKey]['quantity'] ?? 0));
-        $availableStock = min($product->stock, $variant?->stock ?? $product->stock);
+        $availableStock = $variant?->stock ?? $product->stock;
 
         if ($requestedQuantity > $availableStock) {
             return redirect()->back()->with('error', $availableStock > 0

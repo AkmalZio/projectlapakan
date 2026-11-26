@@ -112,8 +112,9 @@ class MarketplaceController extends Controller
 
         $product->is_favorited = auth()->check() && $product->favorites()->where('user_id', auth()->id())->exists();
         $product->is_own_product = auth()->check() && (int) $product->store?->user_id === (int) auth()->id();
+        $product->is_platform_admin = auth()->user()?->isAdmin() ?? false;
 
-        $relatedProducts = Product::with('category')
+        $relatedProducts = Product::with(['category', 'variants'])
             ->where('category_id', $product->category_id)
             ->where('id', '!=', $product->id)
             ->where('is_active', true)

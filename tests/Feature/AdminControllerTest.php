@@ -104,6 +104,266 @@ class AdminControllerTest extends TestCase
         $this->assertSame($admin->id, $product->store->user_id);
     }
 
+    public function test_admin_can_create_a_product_with_multiple_flavor_variants(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $category = $this->createCategory();
+
+        $this->actingAs($admin)->post(route('admin.products.store'), [
+            ...$this->validProductData($category),
+            'variants' => [
+                [
+                    'type' => 'flavor',
+                    'name' => 'Belgian Dark Choco',
+                    'additional_price' => 5000,
+                    'stock' => 8,
+                    'image' => UploadedFile::fake()->image('belgian-flavor-'.self::UPLOAD_NAME.'.jpg'),
+                ],
+                ['type' => 'flavor', 'name' => 'Matcha Cream Cheese', 'additional_price' => 10000, 'stock' => 6],
+                ['type' => 'flavor', 'name' => 'Taro Milk Tea', 'additional_price' => 10000, 'stock' => 5],
+            ],
+            'image' => UploadedFile::fake()->image(self::UPLOAD_NAME.'.jpg', 600, 600),
+        ])->assertRedirect(route('admin.products.index'))
+            ->assertSessionHasNoErrors();
+
+        $product = Product::sole();
+        $this->assertDatabaseCount('product_variants', 3);
+        $variant = $product->variants()->where('name', 'Belgian Dark Choco')->firstOrFail();
+        $this->assertSame('flavor', $variant->type);
+        $this->assertSame('5000.00', $variant->additional_price);
+        $this->assertSame(8, $variant->stock);
+        $this->assertMatchesRegularExpression(
+            '#^/assets/images/\d{10}_[A-Za-z0-9]{6}_belgian-flavor-'.self::UPLOAD_NAME.'\.jpg$#',
+            $variant->image,
+        );
+        $this->assertFileExists(public_path(ltrim($variant->image, '/')));
+
+        $this->actingAs($admin)
+            ->get(route('admin.products.edit', $product))
+            ->assertInertia(fn ($page) => $page
+                ->where('product.variants.0.name', 'Belgian Dark Choco')
+                ->where('product.variants.0.image', $variant->image)
+                ->where('product.variants.1.name', 'Matcha Cream Cheese')
+                ->where('product.variants.2.name', 'Taro Milk Tea')
+            );
+    }
+
+    public function test_variant_images_can_be_replaced_removed_or_deleted_with_the_variant(): void
+    {
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $product = $this->createProduct($seller);
+        $replacedVariant = $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Belgian Dark Choco',
+            'image' => '/assets/images/old-replaced-'.self::UPLOAD_NAME.'.jpg',
+            'stock' => 5,
+        ]);
+        $clearedVariant = $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Matcha Cream Cheese',
+            'image' => '/assets/images/old-cleared-'.self::UPLOAD_NAME.'.jpg',
+            'stock' => 5,
+        ]);
+        $deletedVariant = $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Taro Milk Tea',
+            'image' => '/assets/images/old-deleted-'.self::UPLOAD_NAME.'.jpg',
+            'stock' => 5,
+        ]);
+        $oldImagePaths = [
+            public_path('assets/images/old-replaced-'.self::UPLOAD_NAME.'.jpg'),
+            public_path('assets/images/old-cleared-'.self::UPLOAD_NAME.'.jpg'),
+            public_path('assets/images/old-deleted-'.self::UPLOAD_NAME.'.jpg'),
+        ];
+
+        foreach ($oldImagePaths as $oldImagePath) {
+            file_put_contents($oldImagePath, 'old variant image');
+        }
+
+        $this->actingAs($seller)->patch(route('admin.products.update', $product), [
+            ...$this->validProductData($product->category),
+            'variants_present' => '1',
+            'variants' => [
+                [
+                    'id' => $replacedVariant->id,
+                    'type' => 'flavor',
+                    'name' => 'Belgian Dark Choco',
+                    'additional_price' => 5000,
+                    'stock' => 4,
+                    'image' => UploadedFile::fake()->image('new-flavor-'.self::UPLOAD_NAME.'.png'),
+                    'current_image' => $replacedVariant->image,
+                    'preview_url' => 'blob:preview',
+                    'remove_image' => '0',
+                ],
+                [
+                    'id' => $clearedVariant->id,
+                    'type' => 'flavor',
+                    'name' => 'Matcha Cream Cheese',
+                    'additional_price' => 10000,
+                    'stock' => 3,
+                    'image' => null,
+                    'current_image' => $clearedVariant->image,
+                    'preview_url' => null,
+                    'remove_image' => '1',
+                ],
+            ],
+        ])->assertRedirect(route('admin.products.index'))
+            ->assertSessionHasNoErrors();
+
+        $replacedVariant->refresh();
+        $clearedVariant->refresh();
+        $this->assertMatchesRegularExpression(
+            '#^/assets/images/\d{10}_[A-Za-z0-9]{6}_new-flavor-'.self::UPLOAD_NAME.'\.png$#',
+            $replacedVariant->image,
+        );
+        $this->assertFileExists(public_path(ltrim($replacedVariant->image, '/')));
+        $this->assertNull($clearedVariant->image);
+        $this->assertModelMissing($deletedVariant);
+
+        foreach ($oldImagePaths as $oldImagePath) {
+            $this->assertFileDoesNotExist($oldImagePath);
+        }
+    }
+
+    public function test_variant_image_upload_rejects_non_image_files(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $category = $this->createCategory();
+
+        $this->actingAs($admin)
+            ->post(route('admin.products.store'), [
+                ...$this->validProductData($category),
+                'variants' => [
+                    [
+                        'type' => 'flavor',
+                        'name' => 'Belgian Dark Choco',
+                        'additional_price' => 0,
+                        'stock' => 5,
+                        'image' => UploadedFile::fake()->create('flavor.pdf', 100, 'application/pdf'),
+                    ],
+                ],
+                'image' => UploadedFile::fake()->image(self::UPLOAD_NAME.'.jpg'),
+            ])
+            ->assertSessionHasErrors('variants.0.image');
+
+        $this->assertDatabaseCount('products', 0);
+        $this->assertDatabaseCount('product_variants', 0);
+    }
+
+    public function test_product_creation_rejects_a_variant_without_a_name(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $category = $this->createCategory();
+
+        $this->actingAs($admin)
+            ->post(route('admin.products.store'), [
+                ...$this->validProductData($category),
+                'variants' => [
+                    ['type' => 'flavor', 'name' => '', 'additional_price' => 0, 'stock' => 5],
+                ],
+                'image' => UploadedFile::fake()->image(self::UPLOAD_NAME.'.jpg'),
+            ])
+            ->assertSessionHasErrors([
+                'variants.0.name' => 'Nama varian wajib diisi.',
+            ]);
+
+        $this->assertDatabaseCount('products', 0);
+        $this->assertDatabaseCount('product_variants', 0);
+    }
+
+    public function test_product_update_saves_edits_additions_and_removals_for_variants(): void
+    {
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $product = $this->createProduct($seller);
+        $updatedVariant = $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Vanilla',
+            'additional_price' => 0,
+            'stock' => 8,
+        ]);
+        $removedVariant = $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Strawberry',
+            'additional_price' => 5000,
+            'stock' => 4,
+        ]);
+
+        $this->actingAs($seller)->patch(route('admin.products.update', $product), [
+            ...$this->validProductData($product->category),
+            'variants' => [
+                ['id' => $updatedVariant->id, 'type' => 'flavor', 'name' => 'Belgian Dark Choco', 'additional_price' => 5000, 'stock' => 7],
+                ['type' => 'flavor', 'name' => 'Taro Milk Tea', 'additional_price' => 10000, 'stock' => 3],
+            ],
+        ])->assertRedirect(route('admin.products.index'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $updatedVariant->id,
+            'name' => 'Belgian Dark Choco',
+            'additional_price' => 5000,
+            'stock' => 7,
+        ]);
+        $this->assertDatabaseHas('product_variants', [
+            'product_id' => $product->id,
+            'name' => 'Taro Milk Tea',
+        ]);
+        $this->assertModelMissing($removedVariant);
+        $this->assertDatabaseCount('product_variants', 2);
+    }
+
+    public function test_product_update_can_remove_all_variants_when_the_form_submits_an_empty_list(): void
+    {
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $product = $this->createProduct($seller);
+        $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Vanilla',
+            'stock' => 5,
+        ]);
+
+        $this->actingAs($seller)->patch(route('admin.products.update', $product), [
+            ...$this->validProductData($product->category),
+            'variants_present' => '1',
+        ])->assertRedirect(route('admin.products.index'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('product_variants', 0);
+    }
+
+    public function test_product_update_rejects_variant_ids_from_another_product(): void
+    {
+        $seller = User::factory()->create(['role' => 'merchant']);
+        $product = $this->createProduct($seller);
+        $otherProduct = $this->createProduct(
+            User::factory()->create(['role' => 'merchant']),
+            'Produk Lain',
+            'produk-lain',
+            $product->category,
+        );
+        $foreignVariant = $otherProduct->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Jangan diubah',
+            'stock' => 2,
+        ]);
+
+        $this->actingAs($seller)
+            ->from(route('admin.products.edit', $product))
+            ->patch(route('admin.products.update', $product), [
+                ...$this->validProductData($product->category),
+                'variants' => [
+                    ['id' => $foreignVariant->id, 'type' => 'flavor', 'name' => 'Rasa Palsu', 'additional_price' => 0, 'stock' => 2],
+                ],
+            ])
+            ->assertRedirect(route('admin.products.edit', $product))
+            ->assertSessionHasErrors('variants.0.id');
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $foreignVariant->id,
+            'name' => 'Jangan diubah',
+        ]);
+        $this->assertDatabaseCount('product_variants', 1);
+    }
+
     public function test_two_products_with_the_same_name_get_distinct_slugs(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -290,7 +550,15 @@ class AdminControllerTest extends TestCase
         $seller = User::factory()->create(['role' => 'merchant']);
         $product = $this->createProduct($seller);
         $imagePath = public_path('assets/images/old_'.self::UPLOAD_NAME.'.jpg');
+        $variantImagePath = public_path('assets/images/old-variant_'.self::UPLOAD_NAME.'.jpg');
+        $product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Belgian Dark Choco',
+            'image' => '/assets/images/old-variant_'.self::UPLOAD_NAME.'.jpg',
+            'stock' => 5,
+        ]);
         file_put_contents($imagePath, 'old photo');
+        file_put_contents($variantImagePath, 'old variant photo');
 
         $this->actingAs($seller)
             ->delete(route('admin.products.destroy', $product))
@@ -299,6 +567,7 @@ class AdminControllerTest extends TestCase
 
         $this->assertModelMissing($product);
         $this->assertFileDoesNotExist($imagePath);
+        $this->assertFileDoesNotExist($variantImagePath);
     }
 
     public function test_an_ordered_product_cannot_be_deleted_so_order_history_stays_intact(): void
@@ -348,12 +617,16 @@ class AdminControllerTest extends TestCase
         $this->assertTrue($product->is_active);
     }
 
-    private function createProduct(User $seller): Product
-    {
+    private function createProduct(
+        User $seller,
+        string $name = 'Brownies Lama',
+        string $slug = 'brownies-lama',
+        ?Category $category = null,
+    ): Product {
         return $seller->ownedStore()->products()->create([
-            'category_id' => $this->createCategory()->id,
-            'name' => 'Brownies Lama',
-            'slug' => 'brownies-lama',
+            'category_id' => ($category ?? $this->createCategory())->id,
+            'name' => $name,
+            'slug' => $slug,
             'base_price' => 50000,
             'image' => '/assets/images/old_'.self::UPLOAD_NAME.'.jpg',
             'stock' => 8,

@@ -1,5 +1,5 @@
-import { ImagePlus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
@@ -37,8 +37,10 @@ function Field({ id, label, hint, error, className = '', children }) {
  */
 export default function ProductForm({ form, categories = [], currentImage = null, submitLabel, onSubmit }) {
     const [previewUrl, setPreviewUrl] = useState(null);
+    const variantPreviewUrls = useRef(new Set());
 
     useEffect(() => () => previewUrl && URL.revokeObjectURL(previewUrl), [previewUrl]);
+    useEffect(() => () => variantPreviewUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
     const selectedCategory = categories.find((category) => String(category.id) === String(form.data.category_id));
     const selectedImage = form.data.image;
@@ -57,6 +59,94 @@ export default function ProductForm({ form, categories = [], currentImage = null
     const removeImage = () => {
         form.setData('image', null);
         setPreviewUrl(null);
+    };
+
+    const updateVariant = (index, field, value) => {
+        form.setData(
+            'variants',
+            form.data.variants.map((variant, variantIndex) =>
+                variantIndex === index ? { ...variant, [field]: value } : variant,
+            ),
+        );
+        form.clearErrors(`variants.${index}.${field}`);
+    };
+
+    const releaseVariantPreview = (url) => {
+        if (url?.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+            variantPreviewUrls.current.delete(url);
+        }
+    };
+
+    const chooseVariantImage = (index, event) => {
+        const file = event.target.files?.[0] ?? null;
+        const variant = form.data.variants[index];
+        releaseVariantPreview(variant.preview_url);
+
+        const nextPreviewUrl = file?.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+
+        if (nextPreviewUrl) {
+            variantPreviewUrls.current.add(nextPreviewUrl);
+        }
+
+        form.setData(
+            'variants',
+            form.data.variants.map((currentVariant, variantIndex) =>
+                variantIndex === index
+                    ? {
+                          ...currentVariant,
+                          image: file,
+                          preview_url: nextPreviewUrl,
+                          remove_image: false,
+                      }
+                    : currentVariant,
+            ),
+        );
+        form.clearErrors(`variants.${index}.image`);
+        event.target.value = '';
+    };
+
+    const removeVariantImage = (index) => {
+        const variant = form.data.variants[index];
+        releaseVariantPreview(variant.preview_url);
+
+        form.setData(
+            'variants',
+            form.data.variants.map((currentVariant, variantIndex) =>
+                variantIndex === index
+                    ? {
+                          ...currentVariant,
+                          image: null,
+                          preview_url: null,
+                          remove_image: Boolean(currentVariant.current_image),
+                      }
+                    : currentVariant,
+            ),
+        );
+    };
+
+    const addVariant = () => {
+        form.setData('variants', [
+            ...form.data.variants,
+            {
+                type: 'flavor',
+                name: '',
+                image: null,
+                current_image: null,
+                preview_url: null,
+                remove_image: false,
+                additional_price: '0',
+                stock: form.data.stock || 10,
+            },
+        ]);
+    };
+
+    const removeVariant = (index) => {
+        releaseVariantPreview(form.data.variants[index].preview_url);
+        form.setData(
+            'variants',
+            form.data.variants.filter((_, variantIndex) => variantIndex !== index),
+        );
     };
 
     return (
@@ -177,7 +267,14 @@ export default function ProductForm({ form, categories = [], currentImage = null
                             />
                         </Field>
 
-                        <Field id="stock" label="Stok" error={form.errors.stock}>
+                        <Field
+                            id="stock"
+                            label="Stok produk"
+                            hint={form.data.variants.length > 0
+                                ? 'Stok varian diatur secara terpisah pada setiap varian di bawah ini.'
+                                : 'Digunakan untuk produk yang tidak memiliki varian.'}
+                            error={form.errors.stock}
+                        >
                             <input
                                 id="stock"
                                 type="number"
@@ -242,6 +339,177 @@ export default function ProductForm({ form, categories = [], currentImage = null
                             </span>
                         </label>
                     </div>
+                </section>
+
+                <section className="rounded-2xl border border-[#eadfcd] bg-white p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h2 className="text-base font-bold text-[#3d1725]">Varian produk</h2>
+                            <p className="mt-1 text-sm text-[#746b64]">
+                                Tambahkan beberapa rasa atau pilihan lain, masing-masing dengan harga tambahan dan stok.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addVariant}
+                            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-crimson-700 px-3 text-sm font-semibold text-crimson-800 transition hover:bg-crimson-50"
+                        >
+                            <Plus aria-hidden="true" className="h-4 w-4" />
+                            Tambah varian
+                        </button>
+                    </div>
+
+                    {form.errors.variants && (
+                        <p className="mt-3 text-sm font-medium text-red-600">{form.errors.variants}</p>
+                    )}
+
+                    {form.data.variants.length === 0 ? (
+                        <p className="mt-4 rounded-xl bg-[#fffaf4] px-4 py-3 text-sm text-[#8b8178]">
+                            Belum ada varian. Contoh: Belgian Dark Choco, Matcha Cream Cheese, dan Taro Milk Tea.
+                        </p>
+                    ) : (
+                        <div className="mt-4 space-y-3">
+                            {form.data.variants.map((variant, index) => (
+                                <div
+                                    key={`${variant.id ?? 'new'}-${index}`}
+                                    className="rounded-xl border border-[#f0e6d6] bg-[#fffdf9] p-4"
+                                >
+                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[0.85fr_1.4fr_1.2fr_1fr_auto]">
+                                        <Field
+                                            id={`variant-type-${index}`}
+                                            label="Jenis"
+                                            error={form.errors[`variants.${index}.type`]}
+                                        >
+                                            <select
+                                                id={`variant-type-${index}`}
+                                                value={variant.type}
+                                                onChange={(event) => updateVariant(index, 'type', event.target.value)}
+                                                className={inputClass}
+                                            >
+                                                <option value="flavor">Rasa</option>
+                                                <option value="size">Ukuran</option>
+                                                <option value="tier">Tingkat</option>
+                                            </select>
+                                        </Field>
+                                        <Field
+                                            id={`variant-name-${index}`}
+                                            label="Nama varian"
+                                            error={form.errors[`variants.${index}.name`]}
+                                        >
+                                            <input
+                                                id={`variant-name-${index}`}
+                                                type="text"
+                                                value={variant.name}
+                                                onChange={(event) => updateVariant(index, 'name', event.target.value)}
+                                                className={inputClass}
+                                                placeholder="Belgian Dark Choco"
+                                                maxLength={255}
+                                                required
+                                            />
+                                        </Field>
+                                        <Field
+                                            id={`variant-price-${index}`}
+                                            label="Harga tambahan"
+                                            error={form.errors[`variants.${index}.additional_price`]}
+                                        >
+                                            <div className="mt-1.5 flex items-center rounded-xl border border-[#e2d6c3] bg-white shadow-sm transition focus-within:border-crimson-700 focus-within:ring-1 focus-within:ring-crimson-700">
+                                                <span className="shrink-0 pl-3 text-sm font-semibold text-[#8b8178]">Rp</span>
+                                                <input
+                                                    id={`variant-price-${index}`}
+                                                    type="number"
+                                                    min="0"
+                                                    step="500"
+                                                    value={variant.additional_price}
+                                                    onChange={(event) => updateVariant(index, 'additional_price', event.target.value)}
+                                                    className="block min-w-0 w-full border-0 bg-transparent py-2 pr-3 pl-2 text-sm text-gray-900 shadow-none focus:border-0 focus:outline-none focus:ring-0"
+                                                    required
+                                                />
+                                            </div>
+                                        </Field>
+                                        <Field
+                                            id={`variant-stock-${index}`}
+                                            label="Stok varian"
+                                            error={form.errors[`variants.${index}.stock`]}
+                                        >
+                                            <input
+                                                id={`variant-stock-${index}`}
+                                                type="number"
+                                                min="0"
+                                                value={variant.stock}
+                                                onChange={(event) => updateVariant(index, 'stock', event.target.value)}
+                                                className={inputClass}
+                                                required
+                                            />
+                                        </Field>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeVariant(index)}
+                                            aria-label={`Hapus varian ${variant.name || index + 1}`}
+                                            className="mt-6 inline-flex h-10 w-10 items-center justify-center rounded-xl text-red-600 transition hover:bg-red-50 sm:justify-self-end"
+                                        >
+                                            <Trash2 aria-hidden="true" className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                    <div className="mt-4 grid gap-3 sm:grid-cols-[6rem_minmax(0,1fr)] sm:items-center">
+                                        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-[#f0e6d6] bg-[#fffaf4]">
+                                            {variant.preview_url || (!variant.remove_image && variant.current_image) ? (
+                                                <img
+                                                    src={variant.preview_url || variant.current_image}
+                                                    alt={`Pratinjau gambar ${variant.name || 'varian'}`}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <ImagePlus aria-hidden="true" className="h-7 w-7 text-[#b3a48c]" />
+                                            )}
+                                        </div>
+                                        <Field
+                                            id={`variant-image-${index}`}
+                                            label="Gambar varian"
+                                            hint="JPG, PNG, atau WEBP. Maksimal 2 MB."
+                                            error={form.errors[`variants.${index}.image`]}
+                                        >
+                                            <div className="mt-2 flex flex-wrap items-center gap-3">
+                                                <label
+                                                    htmlFor={`variant-image-${index}`}
+                                                    className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border border-[#e2d6c3] bg-white px-3 text-sm font-semibold text-[#3d1725] transition hover:bg-[#fffaf4]"
+                                                >
+                                                    <ImagePlus aria-hidden="true" className="h-4 w-4" />
+                                                    {variant.current_image && !variant.remove_image ? 'Ganti gambar' : 'Pilih gambar'}
+                                                </label>
+                                                <input
+                                                    id={`variant-image-${index}`}
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/webp"
+                                                    onChange={(event) => chooseVariantImage(index, event)}
+                                                    className="sr-only"
+                                                />
+                                                {(variant.preview_url || (!variant.remove_image && variant.current_image)) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeVariantImage(index)}
+                                                        className="inline-flex min-h-10 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                                                    >
+                                                        <Trash2 aria-hidden="true" className="h-4 w-4" />
+                                                        Hapus gambar
+                                                    </button>
+                                                )}
+                                                {variant.image && (
+                                                    <span className="max-w-full truncate text-xs text-[#8b8178]">
+                                                        {variant.image.name} ({formatFileSize(variant.image.size)})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {variant.image?.size > MAX_IMAGE_BYTES && !form.errors[`variants.${index}.image`] && (
+                                                <p className="mt-1 text-xs font-medium text-amber-700">
+                                                    Gambar lebih dari 2 MB dan akan ditolak server saat disimpan.
+                                                </p>
+                                            )}
+                                        </Field>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </section>
             </div>
 

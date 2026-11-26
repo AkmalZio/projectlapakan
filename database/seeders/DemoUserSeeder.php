@@ -38,6 +38,13 @@ class DemoUserSeeder extends Seeder
             'phone' => '081311112222',
             'address' => 'Jl. Melati No. 5, Bandung',
         ],
+        [
+            'email' => 'pembeli2@lapakan.com',
+            'name' => 'Pembeli Demo 2',
+            'role' => 'customer',
+            'phone' => '081311112223',
+            'address' => 'Jl. Melati No. 6, Bandung',
+        ],
     ];
 
     public function run(): void

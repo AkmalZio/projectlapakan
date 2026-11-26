@@ -14,6 +14,8 @@ export default function Create({ store, categories = [] }) {
         image: null,
         is_active: true,
         is_featured: true,
+        variants_present: true,
+        variants: [],
     });
 
     const submit = (event) => {

@@ -339,6 +339,25 @@ class MarketplaceTest extends TestCase
         $response->assertRedirect();
     }
 
+    public function test_variant_can_be_added_to_cart_when_product_stock_is_empty(): void
+    {
+        $this->product->update(['stock' => 0]);
+        $variant = $this->product->variants()->create([
+            'name' => 'Belgian Dark Choco',
+            'additional_price' => 0,
+            'stock' => 3,
+        ]);
+
+        $response = $this->from('/product/'.$this->product->slug)->post('/cart/add', [
+            'product_id' => $this->product->id,
+            'variant_id' => $variant->id,
+            'quantity' => 2,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame(2, session('cart')[$this->product->id.'_'.$variant->id]['quantity']);
+    }
+
     public function test_order_can_be_created_from_checkout(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -482,11 +501,42 @@ class MarketplaceTest extends TestCase
     {
         $this->actingAs($this->store->user)
             ->get(route('product.show', $this->product->slug))
-            ->assertInertia(fn ($page) => $page->where('product.is_own_product', true));
+            ->assertInertia(fn ($page) => $page
+                ->where('product.is_own_product', true)
+                ->where('product.is_platform_admin', false)
+            );
 
         $this->actingAs($this->user)
             ->get(route('product.show', $this->product->slug))
-            ->assertInertia(fn ($page) => $page->where('product.is_own_product', false));
+            ->assertInertia(fn ($page) => $page
+                ->where('product.is_own_product', false)
+                ->where('product.is_platform_admin', false)
+            );
+
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->get(route('product.show', $this->product->slug))
+            ->assertInertia(fn ($page) => $page
+                ->where('product.is_own_product', false)
+                ->where('product.is_platform_admin', true)
+            );
+    }
+
+    public function test_product_detail_exposes_the_selected_flavors_image(): void
+    {
+        $variant = $this->product->variants()->create([
+            'type' => 'flavor',
+            'name' => 'Belgian Dark Choco',
+            'image' => '/assets/images/belgian-dark-choco.jpg',
+            'stock' => 5,
+        ]);
+
+        $this->get(route('product.show', $this->product->slug))
+            ->assertInertia(fn ($page) => $page
+                ->where('product.variants.0.id', $variant->id)
+                ->where('product.variants.0.image', '/assets/images/belgian-dark-choco.jpg')
+            );
     }
 
     public function test_cart_page_counts_the_stores_that_will_ship_separately(): void
@@ -633,11 +683,11 @@ class MarketplaceTest extends TestCase
         $response->assertSessionHasErrors(['customizations.'.$this->store->id.'.candles_count' => 'Jumlah lilin maksimal 100.']);
     }
 
-    public function test_checkout_rejects_variants_that_together_exceed_the_product_stock(): void
+    public function test_checkout_uses_each_variant_stock_without_decrementing_product_stock(): void
     {
-        $this->product->update(['stock' => 3]);
-        $small = $this->product->variants()->create(['name' => '16 cm', 'additional_price' => 0, 'stock' => 10]);
-        $large = $this->product->variants()->create(['name' => '20 cm', 'additional_price' => 0, 'stock' => 10]);
+        $this->product->update(['stock' => 0]);
+        $small = $this->product->variants()->create(['name' => 'Belgian Dark Choco', 'additional_price' => 0, 'stock' => 3]);
+        $large = $this->product->variants()->create(['name' => 'Matcha Cream Cheese', 'additional_price' => 0, 'stock' => 3]);
         $session = $this->checkoutSession([]);
         $session['checkout_cart'] = [
             $this->product->id.'_'.$small->id => $this->variantCartItem($small, 2),
@@ -647,9 +697,35 @@ class MarketplaceTest extends TestCase
         $this->actingAs($this->user)->withSession($session);
         $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
 
-        $response->assertSessionHasErrors(['cart' => 'Stok "Chocolate Drip Cake" tersisa 3. Kurangi jumlah pesanan lalu coba lagi.']);
+        $order = Order::query()->sole();
+        $response->assertRedirect(route('orders.success', ['orderNumber' => $order->order_number], absolute: false));
+        $this->assertSame(0, $this->product->fresh()->stock);
+        $this->assertSame(1, $small->fresh()->stock);
+        $this->assertSame(1, $large->fresh()->stock);
+    }
+
+    public function test_checkout_rejects_a_variant_quantity_above_that_variants_stock(): void
+    {
+        $this->product->update(['stock' => 0]);
+        $variant = $this->product->variants()->create([
+            'name' => 'Belgian Dark Choco',
+            'additional_price' => 0,
+            'stock' => 1,
+        ]);
+        $session = $this->checkoutSession([]);
+        $session['checkout_cart'] = [
+            $this->product->id.'_'.$variant->id => $this->variantCartItem($variant, 2),
+        ];
+
+        $this->actingAs($this->user)->withSession($session);
+        $response = $this->from('/checkout/payment')->post('/checkout/process', $this->checkoutPaymentPayload());
+
+        $response->assertSessionHasErrors([
+            'cart' => 'Stok "Chocolate Drip Cake (Belgian Dark Choco)" tersisa 1. Kurangi jumlah pesanan lalu coba lagi.',
+        ]);
         $this->assertDatabaseCount('orders', 0);
-        $this->assertSame(3, $this->product->fresh()->stock);
+        $this->assertSame(0, $this->product->fresh()->stock);
+        $this->assertSame(1, $variant->fresh()->stock);
     }
 
     public function test_checkout_rejects_a_variant_that_does_not_belong_to_the_product(): void

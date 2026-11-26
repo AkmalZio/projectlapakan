@@ -71,6 +71,13 @@ class ResetUsersCommandTest extends TestCase
             ->assertRedirect();
 
         $this->assertAuthenticatedAs(User::where('email', 'pembeli@lapakan.com')->firstOrFail());
+
+        $this->post('/logout')->assertRedirect('/');
+
+        $this->post('/login', ['email' => 'pembeli2@lapakan.com', 'password' => 'password'])
+            ->assertRedirect();
+
+        $this->assertAuthenticatedAs(User::where('email', 'pembeli2@lapakan.com')->firstOrFail());
     }
 
     public function test_fresh_mode_wipes_all_users_with_their_data_and_reseeds_the_demo(): void
@@ -87,7 +94,7 @@ class ResetUsersCommandTest extends TestCase
         $this->assertModelMissing($buyer);
         $this->assertModelMissing($order);
         $this->assertSame(
-            ['admin@lapakan.com', 'baker@lapakan.com', 'pembeli@lapakan.com'],
+            ['admin@lapakan.com', 'baker@lapakan.com', 'pembeli2@lapakan.com', 'pembeli@lapakan.com'],
             User::orderBy('email')->pluck('email')->all(),
         );
         $this->assertTrue(Store::where('slug', 'lapakan-artisan-bakery')->firstOrFail()->user->is(User::where('email', 'baker@lapakan.com')->first()));

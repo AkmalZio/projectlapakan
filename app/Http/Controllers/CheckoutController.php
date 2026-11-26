@@ -347,10 +347,10 @@ class CheckoutController extends Controller
                             : null,
                     ]);
 
-                    $product->decrement('stock', $item['quantity']);
-
                     if (! empty($item['variant_id'])) {
                         $variants[$item['variant_id']]->decrement('stock', $item['quantity']);
+                    } else {
+                        $product->decrement('stock', $item['quantity']);
                     }
                 }
 
@@ -471,6 +471,8 @@ class CheckoutController extends Controller
     private function ensureCartIsPurchasable(array $cart, Collection $products, Collection $variants, User $buyer): void
     {
         $quantityByProduct = [];
+        $quantityByVariant = [];
+        $variantCartNames = [];
 
         foreach ($cart as $item) {
             $product = $products->get($item['product_id']);
@@ -502,7 +504,22 @@ class CheckoutController extends Controller
                 ]);
             }
 
-            $quantityByProduct[$product->id] = ($quantityByProduct[$product->id] ?? 0) + $item['quantity'];
+            if ($variant) {
+                $quantityByVariant[$variant->id] = ($quantityByVariant[$variant->id] ?? 0) + $item['quantity'];
+                $variantCartNames[$variant->id] = $item['name'];
+            } else {
+                $quantityByProduct[$product->id] = ($quantityByProduct[$product->id] ?? 0) + $item['quantity'];
+            }
+        }
+
+        foreach ($quantityByVariant as $variantId => $quantity) {
+            $variant = $variants->get($variantId);
+
+            if ($variant->stock < $quantity) {
+                throw ValidationException::withMessages([
+                    'cart' => 'Stok "'.$variantCartNames[$variantId].' ('.$variant->name.')" tersisa '.max(0, $variant->stock).'. Kurangi jumlah pesanan lalu coba lagi.',
+                ]);
+            }
         }
 
         foreach ($quantityByProduct as $productId => $quantity) {

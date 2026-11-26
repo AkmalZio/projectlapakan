@@ -122,10 +122,10 @@ class Order extends Model
     public function cancel(): void
     {
         foreach ($this->items as $item) {
-            Product::whereKey($item->product_id)->increment('stock', $item->quantity);
-
             if ($item->product_variant_id) {
                 ProductVariant::whereKey($item->product_variant_id)->increment('stock', $item->quantity);
+            } else {
+                Product::whereKey($item->product_id)->increment('stock', $item->quantity);
             }
         }
 

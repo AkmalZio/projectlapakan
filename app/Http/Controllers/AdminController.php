@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -63,21 +65,25 @@ class AdminController extends Controller
 
         $store = $this->storeOf($request->user());
 
-        $store->products()->create([
-            'category_id' => $validated['category_id'],
-            'name' => $validated['name'],
-            'slug' => (Str::slug($validated['name']) ?: 'produk').'-'.time().'-'.Str::lower(Str::random(4)),
-            'description' => $validated['description'] ?? 'Produk baru dari toko '.$store->name,
-            'base_price' => $validated['base_price'],
-            'image' => $this->storeImage($request->file('image')),
-            'stock' => $validated['stock'],
-            'weight_grams' => $validated['weight_grams'] ?? null,
-            'is_active' => $validated['is_active'] ?? true,
-            'is_featured' => $validated['is_featured'] ?? true,
-            'allows_custom_message' => true,
-            'includes_candles' => false,
-            'includes_knife' => false,
-        ]);
+        DB::transaction(function () use ($validated, $request, $store): void {
+            $product = $store->products()->create([
+                'category_id' => $validated['category_id'],
+                'name' => $validated['name'],
+                'slug' => (Str::slug($validated['name']) ?: 'produk').'-'.time().'-'.Str::lower(Str::random(4)),
+                'description' => $validated['description'] ?? 'Produk baru dari toko '.$store->name,
+                'base_price' => $validated['base_price'],
+                'image' => $this->storeImage($request->file('image')),
+                'stock' => $validated['stock'],
+                'weight_grams' => $validated['weight_grams'] ?? null,
+                'is_active' => $validated['is_active'] ?? true,
+                'is_featured' => $validated['is_featured'] ?? true,
+                'allows_custom_message' => true,
+                'includes_candles' => false,
+                'includes_knife' => false,
+            ]);
+
+            $this->syncVariants($product, $validated['variants'] ?? []);
+        });
 
         return redirect()->route('admin.products.index')->with('success', 'Produk "'.$validated['name'].'" berhasil ditambahkan.');
     }
@@ -91,7 +97,13 @@ class AdminController extends Controller
             'product' => $product->only([
                 'id', 'category_id', 'name', 'slug', 'description', 'base_price', 'image',
                 'stock', 'weight_grams', 'is_active', 'is_featured',
-            ]),
+            ]) + [
+                'variants' => $product->variants
+                    ->map(fn (ProductVariant $variant): array => $variant->only([
+                        'id', 'type', 'name', 'image', 'additional_price', 'stock',
+                    ]))
+                    ->values(),
+            ],
             'categories' => $this->activeCategories(),
         ]);
     }
@@ -104,7 +116,7 @@ class AdminController extends Controller
     {
         $this->ensureProductBelongsTo($product, $request->user());
 
-        $validated = $request->validate($this->productRules(isImageRequired: false), $this->productMessages());
+        $validated = $request->validate($this->productRules(isImageRequired: false, product: $product), $this->productMessages());
 
         $attributes = [
             'category_id' => $validated['category_id'],
@@ -126,10 +138,22 @@ class AdminController extends Controller
                 : null;
         }
 
-        $product->update($attributes);
+        $variantImagesToDelete = DB::transaction(function () use ($product, $attributes, $validated, $request): array {
+            $product->update($attributes);
+
+            if ($request->boolean('variants_present') || array_key_exists('variants', $validated)) {
+                return $this->syncVariants($product, $validated['variants'] ?? []);
+            }
+
+            return [];
+        });
 
         if (isset($attributes['image'])) {
             $this->deleteImageIfUnused($previousImage);
+        }
+
+        foreach ($variantImagesToDelete as $variantImage) {
+            $this->deleteImageIfUnused($variantImage);
         }
 
         return redirect()->route('admin.products.index')->with('success', 'Produk "'.$product->name.'" berhasil diperbarui.');
@@ -164,10 +188,15 @@ class AdminController extends Controller
         }
 
         $image = $product->image;
+        $variantImages = $product->variants()->pluck('image')->filter()->all();
 
         $product->delete();
 
         $this->deleteImageIfUnused($image);
+
+        foreach ($variantImages as $variantImage) {
+            $this->deleteImageIfUnused($variantImage);
+        }
 
         return redirect()->route('admin.products.index')->with('success', 'Produk "'.$product->name.'" berhasil dihapus.');
     }
@@ -175,8 +204,16 @@ class AdminController extends Controller
     /**
      * @return array<string, list<mixed>>
      */
-    private function productRules(bool $isImageRequired): array
+    private function productRules(bool $isImageRequired, ?Product $product = null): array
     {
+        $variantIdRules = ['nullable', 'integer'];
+
+        if ($product instanceof Product) {
+            $variantIdRules[] = Rule::exists('product_variants', 'id')->where('product_id', $product->id);
+        } else {
+            $variantIdRules[] = 'prohibited';
+        }
+
         return [
             'category_id' => [
                 'required',
@@ -190,7 +227,84 @@ class AdminController extends Controller
             'image' => [$isImageRequired ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'is_active' => ['nullable', 'boolean'],
             'is_featured' => ['nullable', 'boolean'],
+            'variants_present' => ['sometimes', 'boolean'],
+            'variants' => ['sometimes', 'array', 'max:20'],
+            'variants.*' => ['array:id,type,name,image,current_image,preview_url,remove_image,additional_price,stock'],
+            'variants.*.id' => $variantIdRules,
+            'variants.*.type' => ['required', 'string', Rule::in(['flavor', 'size', 'tier'])],
+            'variants.*.name' => ['required', 'string', 'max:255', 'distinct:ignore_case'],
+            'variants.*.image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'variants.*.current_image' => ['nullable', 'string', 'max:2048'],
+            'variants.*.preview_url' => ['nullable', 'string', 'max:2048'],
+            'variants.*.remove_image' => ['nullable', 'boolean'],
+            'variants.*.additional_price' => ['required', 'numeric', 'min:0', 'max:9999999999'],
+            'variants.*.stock' => ['required', 'integer', 'min:0', 'max:100000'],
         ];
+    }
+
+    /**
+     * Create, update, and remove a product's variants using the submitted list.
+     *
+     * @param  list<array{id?: int|null, type: string, name: string, additional_price: numeric-string|int|float, stock: int, image?: UploadedFile|null, remove_image?: bool|string}>  $variants
+     * @return list<string>
+     */
+    private function syncVariants(Product $product, array $variants): array
+    {
+        $retainedIds = [];
+        $imagesToDelete = [];
+
+        foreach ($variants as $variant) {
+            $attributes = [
+                'type' => $variant['type'],
+                'name' => $variant['name'],
+                'additional_price' => $variant['additional_price'],
+                'stock' => $variant['stock'],
+            ];
+
+            if (! empty($variant['id'])) {
+                $existingVariant = $product->variants()->whereKey($variant['id'])->firstOrFail();
+
+                if (($variant['image'] ?? null) instanceof UploadedFile) {
+                    if ($existingVariant->image) {
+                        $imagesToDelete[] = $existingVariant->image;
+                    }
+
+                    $attributes['image'] = $this->storeImage($variant['image']);
+                } elseif (! empty($variant['remove_image'])) {
+                    if ($existingVariant->image) {
+                        $imagesToDelete[] = $existingVariant->image;
+                    }
+
+                    $attributes['image'] = null;
+                }
+
+                $existingVariant->update($attributes);
+                $retainedIds[] = $existingVariant->id;
+
+                continue;
+            }
+
+            if (($variant['image'] ?? null) instanceof UploadedFile) {
+                $attributes['image'] = $this->storeImage($variant['image']);
+            }
+
+            $createdVariant = $product->variants()->create($attributes);
+            $retainedIds[] = $createdVariant->id;
+        }
+
+        $variantsToRemove = $product->variants();
+
+        if ($retainedIds !== []) {
+            $variantsToRemove->whereNotIn('id', $retainedIds);
+        }
+
+        $imagesToDelete = [
+            ...$imagesToDelete,
+            ...$variantsToRemove->pluck('image')->filter()->all(),
+        ];
+        $variantsToRemove->delete();
+
+        return array_values(array_unique($imagesToDelete));
     }
 
     /**
@@ -201,6 +315,19 @@ class AdminController extends Controller
         return [
             'category_id.required' => 'Pilih kategori produk.',
             'category_id.exists' => 'Kategori yang dipilih tidak tersedia. Pilih kategori lain.',
+            'name.required' => 'Nama wajib diisi.',
+            'base_price.min' => 'Harga minimal 0.',
+            'stock.integer' => 'Stok harus berupa bilangan bulat.',
+            'variants.max' => 'Maksimal 20 varian per produk.',
+            'variants.*.type.in' => 'Pilih jenis varian yang tersedia.',
+            'variants.*.name.required' => 'Nama varian wajib diisi.',
+            'variants.*.name.distinct' => 'Nama varian tidak boleh sama.',
+            'variants.*.image.image' => 'Foto varian harus berupa gambar.',
+            'variants.*.image.mimes' => 'Format foto varian harus JPG, JPEG, PNG, atau WEBP.',
+            'variants.*.image.max' => 'Ukuran foto varian maksimal 2 MB.',
+            'variants.*.image.uploaded' => 'Foto varian gagal diunggah. Pastikan ukurannya tidak lebih dari 2 MB.',
+            'variants.*.additional_price.required' => 'Isi tambahan harga varian.',
+            'variants.*.stock.integer' => 'Stok varian harus berupa bilangan bulat.',
             'image.required' => 'Foto produk wajib diunggah.',
             'image.image' => 'File harus berupa gambar.',
             'image.mimes' => 'Format foto harus JPG, JPEG, PNG, atau WEBP.',
@@ -235,7 +362,7 @@ class AdminController extends Controller
     }
 
     /**
-     * Remove a photo uploaded through this controller once no product points to it anymore.
+     * Remove a photo uploaded through this controller once no product or variant uses it.
      * External URLs (such as the seeded Unsplash photos) are never touched.
      */
     private function deleteImageIfUnused(?string $image): void
@@ -244,7 +371,7 @@ class AdminController extends Controller
             return;
         }
 
-        if (Product::where('image', $image)->exists()) {
+        if (Product::where('image', $image)->exists() || ProductVariant::where('image', $image)->exists()) {
             return;
         }
 

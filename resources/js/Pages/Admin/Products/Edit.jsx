@@ -15,6 +15,18 @@ export default function Edit({ store, product, categories = [] }) {
         image: null,
         is_active: Boolean(product.is_active),
         is_featured: Boolean(product.is_featured),
+        variants_present: true,
+        variants: (product.variants ?? []).map((variant) => ({
+            id: variant.id,
+            type: variant.type,
+            name: variant.name,
+            image: null,
+            current_image: variant.image,
+            preview_url: null,
+            remove_image: false,
+            additional_price: String(Number(variant.additional_price)),
+            stock: variant.stock,
+        })),
     });
 
     const submit = (event) => {
